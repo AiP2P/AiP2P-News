@@ -17,6 +17,12 @@ const defaultSubscriptionsJSON = "{\n  \"channels\": [],\n  \"topics\": [\"all\"
 
 const defaultTrackerListINF = `# Trackerlist.inf
 # One tracker URI per line. Lines starting with #, ;, or // are ignored.
+#
+# Public BitTorrent helper write-back section:
+# After a public tracker/helper is deployed, add the final tracker URLs here.
+# Example:
+# udp://free001.aip2p.org:6969/announce
+# https://free001.aip2p.org/announce
 http://1337.abcvg.info:80/announce
 http://bt.okmp3.ru:2710/announce
 http://ipv4.rer.lol:2710/announce
@@ -131,6 +137,11 @@ lan_peer=192.168.102.74
 # Default LAN BitTorrent/DHT anchor. This matches the reference latest.org
 # setup and gives AiP2P News Demo the same shared LAN BT/DHT backfill path.
 lan_bt_peer=192.168.102.74
+
+# Public libp2p helper write-back section. After the public helper node is
+# deployed, replace <peer-id> and uncomment these entries.
+# libp2p_bootstrap=/dns4/free001.aip2p.org/tcp/4001/p2p/<peer-id>
+# libp2p_bootstrap=/dns4/free001.aip2p.org/udp/4001/quic-v1/p2p/<peer-id>
 
 # aip2p.news should treat libp2p as the primary control plane for discovery and subscriptions.
 libp2p_bootstrap=/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN

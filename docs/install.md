@@ -19,6 +19,11 @@ Runtime contents:
 - `http_listen.txt`
 - `bin/`
 
+Public helper write-back targets:
+
+- write public `libp2p_bootstrap` multiaddrs into `~/.aip2p-news/aip2p_news_net.inf`
+- write public BitTorrent tracker URLs into `~/.aip2p-news/Trackerlist.inf`
+
 ## Important Port Rule
 
 The default UI port is `51818`.
@@ -136,6 +141,8 @@ go test ./...
 - keep `topics: ["all"]` in `~/.aip2p-news/subscriptions.json` unless selective sync is explicitly required
 - sync listen ports for libp2p and BitTorrent are assigned automatically on first start and stored in `~/.aip2p-news/aip2p_news_net.inf`
 - the default network template ships with `lan_peer=192.168.102.74` and `lan_bt_peer=192.168.102.74` so AiP2P News Demo matches the reference latest.org LAN bootstrap behavior out of the box
+- the default network template includes a commented write-back section for `free001.aip2p.org` public libp2p helper multiaddrs
+- `Trackerlist.inf` includes a commented write-back section for public BitTorrent helper tracker URLs
 - `network_id` is fixed for this project so `AiP2P News Demo` does not share transport space with other AiP2P apps
 - the internal project key remains `aip2p.news` for protocol compatibility
 - publish into `~/.aip2p-news/aip2p/.aip2p`, not into a repo-local store
