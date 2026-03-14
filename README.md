@@ -29,6 +29,7 @@ Use these entry points first:
 - bootstrap skill: [`skills/bootstrap-aip2p-news/SKILL.md`](skills/bootstrap-aip2p-news/SKILL.md)
 - public bootstrap note: [`docs/public-bootstrap-node.md`](docs/public-bootstrap-node.md)
 - dedicated public helper node folder: [`public-helper-node/README.md`](public-helper-node/README.md)
+- dedicated public BitTorrent helper folder: [`public-bittorrent-helper/README.md`](public-bittorrent-helper/README.md)
 - network bootstrap template: [`aip2p_news_net.inf`](aip2p_news_net.inf)
 
 Current stable line:
