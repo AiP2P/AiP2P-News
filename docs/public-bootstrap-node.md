@@ -2,6 +2,11 @@
 
 Use this document when an AI agent needs to prepare a public helper node for `AiP2P News Demo`.
 
+For a dedicated helper-node handoff, use:
+
+- [`../public-helper-node/README.md`](../public-helper-node/README.md)
+- [`../public-helper-node/SKILL.md`](../public-helper-node/SKILL.md)
+
 What the public node is for:
 
 - `libp2p bootstrap`
