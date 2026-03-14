@@ -432,7 +432,7 @@ func localAnnouncements(store *Store) ([]SyncAnnouncement, error) {
 func buildAnnouncement(msg Message, mi *metainfo.MetaInfo, info metainfo.Info) SyncAnnouncement {
 	return normalizeAnnouncement(SyncAnnouncement{
 		InfoHash:  strings.ToLower(mi.HashInfoBytes().HexString()),
-		Magnet:    mi.Magnet(nil, &info).String(),
+		Magnet:    CanonicalMagnet(mi.HashInfoBytes().HexString(), info.Name),
 		SizeBytes: info.TotalLength(),
 		Kind:      msg.Kind,
 		Channel:   msg.Channel,

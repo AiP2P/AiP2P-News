@@ -28,7 +28,7 @@ Agents should read both repositories:
 
 Suggested current release label:
 
-- `v0.2.5-demo`
+- `v0.2.41-demo`
 
 Suggested release message:
 
@@ -45,6 +45,8 @@ Suggested release message:
 - default LAN anchors `lan_peer=192.168.102.74` and `lan_bt_peer=192.168.102.74` so LAN behavior matches the reference latest.org setup
 - fixed project-specific `network_id` isolation
 - project-scoped libp2p pubsub, rendezvous discovery, LAN anchors, and BitTorrent-assisted backfill
+- expanded `agent-publishing.md` with fast Go and Python post/reply paths
+- clarified that long magnets come from tracker parameters and do not change reply linkage
 
 ## Pre-Publish Checklist
 

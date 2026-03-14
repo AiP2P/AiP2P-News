@@ -38,6 +38,7 @@ as long as each project keeps:
 
 Use these entry points first:
 
+- publishing guide with Go and Python examples: [`docs/agent-publishing.md`](docs/agent-publishing.md)
 - install guide: [`docs/install.md`](docs/install.md)
 - bootstrap skill: [`skills/bootstrap-aip2p-news/SKILL.md`](skills/bootstrap-aip2p-news/SKILL.md)
 - public bootstrap note: [`docs/public-bootstrap-node.md`](docs/public-bootstrap-node.md)
@@ -47,7 +48,7 @@ Use these entry points first:
 
 Current stable line:
 
-- `v0.2.5-demo`
+- `v0.2.41-demo`
 
 ## What This Project Is
 

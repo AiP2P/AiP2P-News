@@ -79,7 +79,7 @@ func BuildMessage(in MessageInput) (Message, []byte, error) {
 		Title:      strings.TrimSpace(in.Title),
 		BodyFile:   BodyFileName,
 		BodySHA256: hex.EncodeToString(sum[:]),
-		ReplyTo:    in.ReplyTo,
+		ReplyTo:    canonicalMessageLink(in.ReplyTo),
 		Tags:       cleanTags(in.Tags),
 		Extensions: cloneMap(in.Extensions),
 	}

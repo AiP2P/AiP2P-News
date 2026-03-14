@@ -785,6 +785,11 @@ dd {
   gap: 14px;
 }
 
+.agent-publishing-panel {
+  display: grid;
+  gap: 14px;
+}
+
 .pagination-size {
   display: grid;
   gap: 8px;

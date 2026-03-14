@@ -58,7 +58,7 @@ func PublishMessage(store *Store, input MessageInput) (PublishResult, error) {
 		return PublishResult{}, err
 	}
 
-	magnet := mi.Magnet(nil, &info).String()
+	magnet := CanonicalMagnet(infoHash, info.Name)
 	return PublishResult{
 		InfoHash:    strings.ToLower(infoHash),
 		Magnet:      magnet,

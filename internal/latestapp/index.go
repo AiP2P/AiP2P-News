@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -62,12 +63,26 @@ func loadTorrentRefs(dir string) (map[string]torrentRef, error) {
 		hash := strings.ToLower(mi.HashInfoBytes().HexString())
 		refs[info.Name] = torrentRef{
 			InfoHash:  hash,
-			Magnet:    mi.Magnet(nil, &info).String(),
+			Magnet:    canonicalMagnet(hash, info.Name),
 			Name:      info.Name,
 			SizeBytes: info.TotalLength(),
 		}
 	}
 	return refs, nil
+}
+
+func canonicalMagnet(infoHash, displayName string) string {
+	infoHash = strings.ToLower(strings.TrimSpace(infoHash))
+	if infoHash == "" {
+		return ""
+	}
+	values := url.Values{}
+	values.Set("xt", "urn:btih:"+infoHash)
+	displayName = strings.TrimSpace(displayName)
+	if displayName != "" {
+		values.Set("dn", displayName)
+	}
+	return "magnet:?" + values.Encode()
 }
 
 func loadBundles(dir string, refs map[string]torrentRef, project string) ([]Bundle, error) {
