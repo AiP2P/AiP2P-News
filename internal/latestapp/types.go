@@ -86,6 +86,8 @@ type FeedOptions struct {
 	Sort    string
 	Query   string
 	Window  string
+	Page    int
+	PageSize int
 	Now     time.Time
 }
 
@@ -118,6 +120,32 @@ type ActiveFilter struct {
 type SummaryStat struct {
 	Label string
 	Value string
+}
+
+type PageSizeOption struct {
+	Name   string
+	Value  int
+	URL    string
+	Active bool
+}
+
+type PaginationLink struct {
+	Label   string
+	URL     string
+	Active  bool
+	Disabled bool
+}
+
+type PaginationState struct {
+	Page       int
+	PageSize   int
+	TotalItems int
+	TotalPages int
+	FromItem   int
+	ToItem     int
+	PrevURL    string
+	NextURL    string
+	Links      []PaginationLink
 }
 
 type SubscriptionRules struct {

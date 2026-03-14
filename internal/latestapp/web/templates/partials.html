@@ -105,3 +105,45 @@
     </aside>
   </article>
 {{end}}
+
+{{define "paginationControls"}}
+  {{if gt .Pagination.TotalItems 0}}
+    <section class="panel panel-inline pagination-panel">
+      <div class="panel-head">
+        <div>
+          <p class="panel-label">Feed pagination</p>
+          <p class="micro-copy">Showing {{.Pagination.FromItem}}-{{.Pagination.ToItem}} of {{.Pagination.TotalItems}} matching stories.</p>
+        </div>
+        <div class="pagination-size">
+          <span class="micro-copy">Per page</span>
+          <div class="facet-list facet-list-inline">
+            {{range .PageSizeOptions}}
+              <a class="facet {{if .Active}}is-active{{end}}" href="{{.URL}}">{{.Name}}</a>
+            {{end}}
+          </div>
+        </div>
+      </div>
+      {{if gt .Pagination.TotalPages 1}}
+        <div class="pagination-links">
+          {{if .Pagination.PrevURL}}
+            <a class="filter-chip" href="{{.Pagination.PrevURL}}">Previous</a>
+          {{else}}
+            <span class="filter-chip is-disabled">Previous</span>
+          {{end}}
+          {{range .Pagination.Links}}
+            {{if .Active}}
+              <span class="filter-chip is-active">{{.Label}}</span>
+            {{else}}
+              <a class="filter-chip" href="{{.URL}}">{{.Label}}</a>
+            {{end}}
+          {{end}}
+          {{if .Pagination.NextURL}}
+            <a class="filter-chip" href="{{.Pagination.NextURL}}">Next</a>
+          {{else}}
+            <span class="filter-chip is-disabled">Next</span>
+          {{end}}
+        </div>
+      {{end}}
+    </section>
+  {{end}}
+{{end}}

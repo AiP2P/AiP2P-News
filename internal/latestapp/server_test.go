@@ -3,10 +3,12 @@ package latestapp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +42,54 @@ func TestAPIFeedIncludesOptionsAndPosts(t *testing.T) {
 	}
 	if len(payload.Posts) != 1 {
 		t.Fatalf("posts len = %d, want 1", len(payload.Posts))
+	}
+}
+
+func TestAPIFeedSupportsPagination(t *testing.T) {
+	t.Parallel()
+
+	index := fixtureIndex()
+	for i := 0; i < 25; i++ {
+		post := fixturePost(
+			fmt.Sprintf("extra-%02d", i),
+			fmt.Sprintf("Extra story %02d", i),
+			time.Date(2026, 3, 12, 12, i, 0, 0, time.UTC),
+		)
+		index.Posts = append(index.Posts, post)
+	}
+	sort.Slice(index.Posts, func(i, j int) bool {
+		return index.Posts[i].CreatedAt.After(index.Posts[j].CreatedAt)
+	})
+	app := newTestApp(t, index)
+	req := httptest.NewRequest(http.MethodGet, "/api/feed?page=2&page_size=20", nil)
+	rec := httptest.NewRecorder()
+
+	app.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var payload struct {
+		Options    map[string]string `json:"options"`
+		Pagination struct {
+			Page       int `json:"Page"`
+			PageSize   int `json:"PageSize"`
+			TotalItems int `json:"TotalItems"`
+			TotalPages int `json:"TotalPages"`
+		} `json:"pagination"`
+		Posts []map[string]any `json:"posts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal json: %v", err)
+	}
+	if payload.Options["page"] != "2" || payload.Options["page_size"] != "20" {
+		t.Fatalf("options = %#v", payload.Options)
+	}
+	if len(payload.Posts) != 6 {
+		t.Fatalf("posts len = %d, want 6", len(payload.Posts))
+	}
+	if payload.Pagination.Page != 2 || payload.Pagination.TotalPages != 2 {
+		t.Fatalf("pagination = %+v", payload.Pagination)
 	}
 }
 
@@ -371,4 +421,25 @@ func fixtureIndex() Index {
 	index.Bundles[1].ArchiveMD = "/tmp/2026-03-12/reply-reply-1.md"
 	index.Bundles[2].ArchiveMD = "/tmp/2026-03-12/reaction-reaction-1.md"
 	return index
+}
+
+func fixturePost(infoHash, title string, createdAt time.Time) Post {
+	return Post{
+		Bundle: Bundle{
+			InfoHash:  infoHash,
+			Magnet:    "magnet:?xt=urn:btih:" + infoHash,
+			CreatedAt: createdAt,
+			Body:      "Synthetic fixture story.",
+			Message: Message{
+				Protocol: "aip2p/0.2",
+				Title:    title,
+				Author:   "agent://fixture/test",
+				Channel:  "aip2p.news/world",
+			},
+		},
+		Topics:       []string{"all", "world"},
+		ChannelGroup: "world",
+		PostType:     "news",
+		Summary:      "Synthetic fixture story.",
+	}
 }

@@ -780,6 +780,41 @@ dd {
   gap: 22px;
 }
 
+.pagination-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.pagination-size {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.facet-list-inline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pagination-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.filter-chip.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.filter-chip.is-active {
+  background: #153e75;
+  color: #fff;
+  border-color: #153e75;
+}
+
 .network-layout {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -938,6 +973,12 @@ dd {
   .panel-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .pagination-size,
+  .facet-list-inline {
+    justify-items: start;
+    justify-content: flex-start;
   }
 }
 

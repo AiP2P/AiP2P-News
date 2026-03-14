@@ -74,6 +74,7 @@
           {{if .Options.Source}}<input type="hidden" name="source" value="{{.Options.Source}}">{{end}}
           {{if .Options.Sort}}<input type="hidden" name="sort" value="{{.Options.Sort}}">{{end}}
           {{if .Options.Window}}<input type="hidden" name="window" value="{{.Options.Window}}">{{end}}
+          {{if gt .Options.PageSize 0}}<input type="hidden" name="page_size" value="{{.Options.PageSize}}">{{end}}
           <button type="submit">Search</button>
         </form>
       </header>
@@ -151,11 +152,13 @@
             {{end}}
           </section>
           {{if .Posts}}
+            {{template "paginationControls" .}}
             <section class="story-list">
               {{range .Posts}}
                 {{template "postCard" .}}
               {{end}}
             </section>
+            {{template "paginationControls" .}}
           {{else}}
             <section class="empty-state">
               <h2>No matching AiP2P News Demo bundles found</h2>

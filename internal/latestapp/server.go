@@ -96,9 +96,11 @@ type HomePageData struct {
 	SourceFacets   []FeedFacet
 	SortOptions    []SortOption
 	WindowOptions  []TimeWindowOption
+	PageSizeOptions []PageSizeOption
 	ActiveFilters  []ActiveFilter
 	SummaryStats   []SummaryStat
 	TotalPostCount int
+	Pagination     PaginationState
 	Subscriptions  SubscriptionRules
 	NodeStatus     NodeStatus
 }
@@ -117,11 +119,13 @@ type CollectionPageData struct {
 	PageNav        []NavItem
 	SortOptions    []SortOption
 	WindowOptions  []TimeWindowOption
+	PageSizeOptions []PageSizeOption
 	SideLabel      string
 	SideFacets     []FeedFacet
 	ActiveFilters  []ActiveFilter
 	SummaryStats   []SummaryStat
 	TotalPostCount int
+	Pagination     PaginationState
 	ExternalURL    string
 	NodeStatus     NodeStatus
 }
@@ -398,7 +402,8 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	opts := readFeedOptions(r)
-	posts := index.FilterPosts(opts)
+	allPosts := index.FilterPosts(opts)
+	posts, pagination := paginatePosts(allPosts, opts, "/")
 	data := HomePageData{
 		Project:        displayProjectName(a.project),
 		Version:        a.version,
@@ -411,9 +416,11 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		SourceFacets:   buildFeedFacets(index.SourceStats, opts, "/", "source"),
 		SortOptions:    buildSortOptions(opts, "/"),
 		WindowOptions:  buildWindowOptions(opts, "/"),
+		PageSizeOptions: buildPageSizeOptions(opts, "/"),
 		ActiveFilters:  buildActiveFilters(opts, "/"),
-		SummaryStats:   buildSummaryStats(posts),
+		SummaryStats:   buildSummaryStats(allPosts),
 		TotalPostCount: len(index.Posts),
+		Pagination:     pagination,
 		Subscriptions:  rules,
 		NodeStatus:     a.nodeStatus(index),
 	}
@@ -538,7 +545,8 @@ func (a *App) handleSource(w http.ResponseWriter, r *http.Request) {
 	}
 	opts := readFeedOptions(r)
 	opts.Source = name
-	posts := index.FilterPosts(opts)
+	allPosts := index.FilterPosts(opts)
+	posts, pagination := paginatePosts(allPosts, opts, sourcePath(name))
 	if !hasSource(index, name) {
 		http.NotFound(w, r)
 		return
@@ -558,11 +566,13 @@ func (a *App) handleSource(w http.ResponseWriter, r *http.Request) {
 		PageNav:        buildPageNav("/sources"),
 		SortOptions:    buildSortOptions(opts, sourcePath(name), "source"),
 		WindowOptions:  buildWindowOptions(opts, sourcePath(name), "source"),
+		PageSizeOptions: buildPageSizeOptions(opts, sourcePath(name), "source"),
 		SideLabel:      "Topics from this source",
 		SideFacets:     buildFacetLinks(topicStatsForPosts(fullSet), opts, sourcePath(name), "topic", "source"),
 		ActiveFilters:  buildActiveFilters(opts, sourcePath(name), "source"),
-		SummaryStats:   buildSummaryStats(posts),
+		SummaryStats:   buildSummaryStats(allPosts),
 		TotalPostCount: len(fullSet),
+		Pagination:     pagination,
 		ExternalURL:    sourceURLFromPosts(fullSet),
 		NodeStatus:     a.nodeStatus(index),
 	}
@@ -611,7 +621,8 @@ func (a *App) handleTopic(w http.ResponseWriter, r *http.Request) {
 	}
 	opts := readFeedOptions(r)
 	opts.Topic = name
-	posts := index.FilterPosts(opts)
+	allPosts := index.FilterPosts(opts)
+	posts, pagination := paginatePosts(allPosts, opts, topicPath(name))
 	if !hasTopic(index, name) {
 		http.NotFound(w, r)
 		return
@@ -631,11 +642,13 @@ func (a *App) handleTopic(w http.ResponseWriter, r *http.Request) {
 		PageNav:        buildPageNav("/topics"),
 		SortOptions:    buildSortOptions(opts, topicPath(name), "topic"),
 		WindowOptions:  buildWindowOptions(opts, topicPath(name), "topic"),
+		PageSizeOptions: buildPageSizeOptions(opts, topicPath(name), "topic"),
 		SideLabel:      "Sources covering this topic",
 		SideFacets:     buildFacetLinks(sourceStatsForPosts(fullSet), opts, topicPath(name), "source", "topic"),
 		ActiveFilters:  buildActiveFilters(opts, topicPath(name), "topic"),
-		SummaryStats:   buildSummaryStats(posts),
+		SummaryStats:   buildSummaryStats(allPosts),
 		TotalPostCount: len(fullSet),
+		Pagination:     pagination,
 		NodeStatus:     a.nodeStatus(index),
 	}
 	if err := a.templates.ExecuteTemplate(w, "collection.html", data); err != nil {
@@ -794,12 +807,14 @@ func (a *App) handleAPIFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	opts := readFeedOptions(r)
-	posts := index.FilterPosts(opts)
+	allPosts := index.FilterPosts(opts)
+	posts, pagination := paginatePosts(allPosts, opts, "/api/feed")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"project": a.project,
 		"scope":   "feed",
 		"options": apiOptions(opts),
-		"summary": buildSummaryStats(posts),
+		"summary": buildSummaryStats(allPosts),
+		"pagination": pagination,
 		"posts":   apiPosts(posts),
 		"facets": map[string]any{
 			"channels": index.ChannelStats,
@@ -1051,8 +1066,29 @@ func readFeedOptions(r *http.Request) FeedOptions {
 		Sort:    strings.TrimSpace(r.URL.Query().Get("sort")),
 		Query:   strings.TrimSpace(r.URL.Query().Get("q")),
 		Window:  canonicalWindow(r.URL.Query().Get("window")),
+		Page:    parsePositiveInt(r.URL.Query().Get("page"), 1),
+		PageSize: parseFeedPageSize(r.URL.Query().Get("page_size")),
 		Now:     time.Now(),
 	}
+}
+
+func parsePositiveInt(raw string, fallback int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < 1 {
+		return fallback
+	}
+	return value
+}
+
+func parseFeedPageSize(raw string) int {
+	value := parsePositiveInt(raw, 20)
+	if value < 1 {
+		return 20
+	}
+	if value > 200 {
+		return 200
+	}
+	return value
 }
 
 func (a *App) subscriptionRules() (SubscriptionRules, error) {
@@ -1506,6 +1542,24 @@ func buildWindowOptions(opts FeedOptions, basePath string, omit ...string) []Tim
 	return items
 }
 
+func buildPageSizeOptions(opts FeedOptions, basePath string, omit ...string) []PageSizeOption {
+	sizes := []int{20, 50, 100}
+	items := make([]PageSizeOption, 0, len(sizes))
+	active := opts.PageSize
+	if active == 0 {
+		active = 20
+	}
+	for _, size := range sizes {
+		items = append(items, PageSizeOption{
+			Name:   strconv.Itoa(size),
+			Value:  size,
+			URL:    pageURL(basePath, opts, "page_size", strconv.Itoa(size), omit...),
+			Active: size == active,
+		})
+	}
+	return items
+}
+
 func pageURL(basePath string, opts FeedOptions, key, value string, omit ...string) string {
 	next := withOption(opts, key, value)
 	encoded := encodeOptions(next, omit...)
@@ -1530,6 +1584,13 @@ func withOption(opts FeedOptions, key, value string) FeedOptions {
 		next.Query = value
 	case "window":
 		next.Window = canonicalWindow(value)
+	case "page":
+		next.Page = parsePositiveInt(value, 1)
+	case "page_size":
+		next.PageSize = parseFeedPageSize(value)
+	}
+	if key != "page" {
+		next.Page = 1
 	}
 	return next
 }
@@ -1558,6 +1619,12 @@ func encodeOptions(opts FeedOptions, omit ...string) string {
 	set("q", opts.Query)
 	if window := canonicalWindow(opts.Window); window != "" {
 		set("window", window)
+	}
+	if opts.Page > 1 {
+		query.Set("page", strconv.Itoa(opts.Page))
+	}
+	if opts.PageSize > 0 && opts.PageSize != 20 {
+		query.Set("page_size", strconv.Itoa(opts.PageSize))
 	}
 	return query.Encode()
 }
@@ -1609,6 +1676,12 @@ func buildActiveFilters(opts FeedOptions, basePath string, omit ...string) []Act
 			URL:   pageURL(basePath, opts, "source", "", omit...),
 		})
 	}
+	if opts.PageSize > 0 && opts.PageSize != 20 {
+		filters = append(filters, ActiveFilter{
+			Label: "Per page: " + strconv.Itoa(opts.PageSize),
+			URL:   pageURL(basePath, opts, "page_size", "20", omit...),
+		})
+	}
 	return filters
 }
 
@@ -1619,6 +1692,80 @@ func buildSummaryStats(posts []Post) []SummaryStat {
 		{Label: "Reactions", Value: strconv.Itoa(CountReactions(posts))},
 		{Label: "Avg truth", Value: formatAverageTruth(posts)},
 	}
+}
+
+func paginatePosts(posts []Post, opts FeedOptions, basePath string) ([]Post, PaginationState) {
+	pageSize := opts.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	totalItems := len(posts)
+	totalPages := 1
+	if totalItems > 0 {
+		totalPages = (totalItems + pageSize - 1) / pageSize
+	}
+	page := opts.Page
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	start := 0
+	end := totalItems
+	fromItem := 0
+	toItem := 0
+	if totalItems > 0 {
+		start = (page - 1) * pageSize
+		if start > totalItems {
+			start = totalItems
+		}
+		end = start + pageSize
+		if end > totalItems {
+			end = totalItems
+		}
+		fromItem = start + 1
+		toItem = end
+	}
+	currentOpts := opts
+	currentOpts.Page = page
+	currentOpts.PageSize = pageSize
+	state := PaginationState{
+		Page:       page,
+		PageSize:   pageSize,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+		FromItem:   fromItem,
+		ToItem:     toItem,
+	}
+	if page > 1 {
+		state.PrevURL = pageURL(basePath, currentOpts, "page", strconv.Itoa(page-1))
+	}
+	if page < totalPages {
+		state.NextURL = pageURL(basePath, currentOpts, "page", strconv.Itoa(page+1))
+	}
+	startPage := page - 2
+	if startPage < 1 {
+		startPage = 1
+	}
+	endPage := startPage + 4
+	if endPage > totalPages {
+		endPage = totalPages
+	}
+	if endPage-startPage < 4 {
+		startPage = endPage - 4
+		if startPage < 1 {
+			startPage = 1
+		}
+	}
+	for p := startPage; p <= endPage; p++ {
+		state.Links = append(state.Links, PaginationLink{
+			Label:  strconv.Itoa(p),
+			URL:    pageURL(basePath, currentOpts, "page", strconv.Itoa(p)),
+			Active: p == page,
+		})
+	}
+	return posts[start:end], state
 }
 
 func buildDirectorySummaryStats(stats []FacetStat, posts []Post) []SummaryStat {
@@ -1922,7 +2069,7 @@ func bundleThreadURL(bundle Bundle) string {
 }
 
 func apiOptions(opts FeedOptions) map[string]string {
-	return map[string]string{
+	result := map[string]string{
 		"channel": opts.Channel,
 		"topic":   opts.Topic,
 		"source":  opts.Source,
@@ -1930,6 +2077,13 @@ func apiOptions(opts FeedOptions) map[string]string {
 		"q":       opts.Query,
 		"window":  canonicalWindow(opts.Window),
 	}
+	if opts.Page > 1 {
+		result["page"] = strconv.Itoa(opts.Page)
+	}
+	if opts.PageSize > 0 {
+		result["page_size"] = strconv.Itoa(opts.PageSize)
+	}
+	return result
 }
 
 func apiPosts(posts []Post) []map[string]any {
