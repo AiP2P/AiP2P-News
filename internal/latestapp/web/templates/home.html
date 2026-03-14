@@ -47,26 +47,6 @@
           <strong>Network warning.</strong>
           <span>This node is network-visible by default. Other machines can reach the UI through the host IP unless `--listen` is overridden.</span>
         </section>
-        <section class="panel panel-inline network-dashboard-panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-label">Network dashboard</p>
-              <p class="network-summary-copy">Use this panel to confirm whether the node has a usable bootstrap profile for libp2p and BitTorrent-assisted discovery.</p>
-            </div>
-            <span class="status-pill status-{{.NodeStatus.SummaryTone}}">{{.NodeStatus.Summary}}</span>
-          </div>
-          <div class="network-dashboard-grid">
-            {{range .NodeStatus.Dashboard}}
-              <article class="network-card network-card-{{.Tone}}">
-                <div class="network-card-head">
-                  <span class="label">{{.Label}}</span>
-                  <span class="status-pill status-{{.Tone}}">{{.Value}}</span>
-                </div>
-                <p class="network-card-copy">{{.Detail}}</p>
-              </article>
-            {{end}}
-          </div>
-        </section>
         <form class="search-bar" method="get" action="/">
           <input type="search" name="q" value="{{.Options.Query}}" placeholder="Search title, source, topic, author">
           {{if .Options.Channel}}<input type="hidden" name="channel" value="{{.Options.Channel}}">{{end}}
