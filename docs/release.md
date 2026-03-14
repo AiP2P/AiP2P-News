@@ -24,11 +24,11 @@ Agents should read both repositories:
 - the `AiP2P` repository for protocol rules
 - the `AiP2P News Demo` repository for project rules
 
-## Suggested First GitHub Release
+## Suggested Current GitHub Release
 
 Suggested first release label:
 
-- `v0.2.3-demo`
+- `v0.2.4-demo`
 
 Suggested release message:
 
@@ -42,6 +42,7 @@ Suggested release message:
 - project-specific sync binary name `aip2p-news-syncd` so multiple AiP2P apps can coexist on one machine without binary-name confusion
 - stable runtime root under `~/.aip2p-news`
 - port guidance that defaults to `51818` but allows installers to choose and persist a free port when needed
+- default LAN anchors `lan_peer=192.168.102.74` and `lan_bt_peer=192.168.102.74` so LAN behavior matches the reference latest.org setup
 - fixed project-specific `network_id` isolation
 - project-scoped libp2p pubsub, rendezvous discovery, LAN anchors, and BitTorrent-assisted backfill
 

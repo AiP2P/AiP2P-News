@@ -10,7 +10,7 @@ import (
 
 const reservedTopicAll = "all"
 const latestOrgNetworkID = "2c2d6cf7b255ba20d6ad01135654933851b02bd00c65c2a6a54b97ab56590475"
-const defaultLANPeer = ""
+const defaultLANPeer = "192.168.102.74"
 const projectSyncBinaryName = "aip2p-news-syncd"
 
 const defaultSubscriptionsJSON = "{\n  \"channels\": [],\n  \"topics\": [\"all\"],\n  \"tags\": [],\n  \"max_age_days\": 99999999,\n  \"max_bundle_mb\": 10,\n  \"max_items_per_day\": 999999999999\n}\n"
@@ -124,13 +124,13 @@ libp2p_listen=/ip4/0.0.0.0/tcp/%d
 libp2p_listen=/ip4/0.0.0.0/udp/%d/quic-v1
 bittorrent_listen=0.0.0.0:%d
 
-# Optional LAN anchor. Uncomment and set one stable peer IP if this project
-# should use a shared LAN libp2p entrypoint on a local network.
-# lan_peer=192.168.102.74
+# Default LAN anchor. This matches the reference latest.org setup and gives
+# AiP2P News Demo the same shared LAN libp2p entrypoint by default.
+lan_peer=192.168.102.74
 
-# Optional LAN BitTorrent/DHT anchor. Uncomment and set one stable peer IP if
-# this project should use a shared LAN BT/DHT backfill entrypoint.
-# lan_bt_peer=192.168.102.74
+# Default LAN BitTorrent/DHT anchor. This matches the reference latest.org
+# setup and gives AiP2P News Demo the same shared LAN BT/DHT backfill path.
+lan_bt_peer=192.168.102.74
 
 # aip2p.news should treat libp2p as the primary control plane for discovery and subscriptions.
 libp2p_bootstrap=/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN

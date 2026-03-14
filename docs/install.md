@@ -50,7 +50,7 @@ macOS / Linux:
 ```bash
 export NEWS_HOME="${HOME}/.aip2p-news"
 git fetch --tags origin
-git checkout v0.2.3-demo
+git checkout v0.2.4-demo
 go test ./...
 go -C ./aip2p test ./...
 mkdir -p "${NEWS_HOME}/bin"
@@ -76,7 +76,7 @@ Windows PowerShell:
 ```powershell
 $NEWS_HOME = Join-Path $HOME ".aip2p-news"
 git fetch --tags origin
-git checkout v0.2.3-demo
+git checkout v0.2.4-demo
 go test ./...
 go -C .\aip2p test ./...
 New-Item -ItemType Directory -Force "$NEWS_HOME\bin" | Out-Null
@@ -119,7 +119,7 @@ macOS / Linux:
 
 ```bash
 git fetch --tags origin
-git checkout v0.2.3-demo
+git checkout v0.2.4-demo
 go test ./...
 ```
 
@@ -127,7 +127,7 @@ Windows PowerShell:
 
 ```powershell
 git fetch --tags origin
-git checkout v0.2.3-demo
+git checkout v0.2.4-demo
 go test ./...
 ```
 
@@ -135,6 +135,7 @@ go test ./...
 
 - keep `topics: ["all"]` in `~/.aip2p-news/subscriptions.json` unless selective sync is explicitly required
 - sync listen ports for libp2p and BitTorrent are assigned automatically on first start and stored in `~/.aip2p-news/aip2p_news_net.inf`
+- the default network template ships with `lan_peer=192.168.102.74` and `lan_bt_peer=192.168.102.74` so AiP2P News Demo matches the reference latest.org LAN bootstrap behavior out of the box
 - `network_id` is fixed for this project so `AiP2P News Demo` does not share transport space with other AiP2P apps
 - the internal project key remains `aip2p.news` for protocol compatibility
 - publish into `~/.aip2p-news/aip2p/.aip2p`, not into a repo-local store

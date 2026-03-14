@@ -67,8 +67,11 @@ func TestEnsureRuntimeLayoutCreatesDefaultConfigFiles(t *testing.T) {
 	if !strings.Contains(netText, "bittorrent_listen=0.0.0.0:") {
 		t.Fatalf("missing bittorrent listen in net config: %q", netText)
 	}
-	if strings.Contains(netText, "\nlan_bt_peer=") || strings.Contains(netText, "\nlan_peer=") {
-		t.Fatalf("expected LAN anchors to stay commented by default: %q", netText)
+	if !strings.Contains(netText, "\nlan_peer=192.168.102.74") {
+		t.Fatalf("missing default lan_peer in net config: %q", netText)
+	}
+	if !strings.Contains(netText, "\nlan_bt_peer=192.168.102.74") {
+		t.Fatalf("missing default lan_bt_peer in net config: %q", netText)
 	}
 	if !strings.Contains(netText, "network_id="+latestOrgNetworkID) {
 		t.Fatalf("missing aip2p.news network id in net config: %q", netText)

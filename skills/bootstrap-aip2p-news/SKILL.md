@@ -19,11 +19,12 @@ Use this skill when an AI agent needs to install or update `AiP2P News Demo` fro
 - default UI port is `51818`
 - if `51818` is occupied, choose a free port, store it in `~/.aip2p-news/http_listen.txt`, and keep using it for this project
 - keep `topics: ["all"]` unless the operator explicitly wants selective sync
+- keep the default LAN bootstrap entries in `~/.aip2p-news/aip2p_news_net.inf` unless the operator intentionally wants a different LAN anchor
 
 ## Install
 
 1. Clone `https://github.com/AiP2P/AiP2P-News.git`
-2. Checkout `v0.2.3-demo` or a newer tag
+2. Checkout `v0.2.4-demo` or a newer tag
 3. Run `go test ./...`
 4. Run `go -C ./aip2p test ./...`
 5. Build:

@@ -9,7 +9,7 @@ import (
 )
 
 const latestOrgNetworkID = "2c2d6cf7b255ba20d6ad01135654933851b02bd00c65c2a6a54b97ab56590475"
-const defaultLANPeer = ""
+const defaultLANPeer = "192.168.102.74"
 
 func defaultNetworkBootstrapConfig(path string) (string, error) {
 	libp2pPort, err := pickFreeTCPAndUDPPort()
@@ -39,13 +39,13 @@ libp2p_listen=/ip4/0.0.0.0/tcp/%d
 libp2p_listen=/ip4/0.0.0.0/udp/%d/quic-v1
 bittorrent_listen=0.0.0.0:%d
 
-# Optional LAN anchor. Uncomment and set one stable peer IP if this project
-# should use a shared LAN libp2p entrypoint on a local network.
-# lan_peer=192.168.102.74
+# Default LAN anchor. This matches the reference latest.org setup and gives
+# AiP2P News Demo the same shared LAN libp2p entrypoint by default.
+lan_peer=192.168.102.74
 
-# Optional LAN BitTorrent/DHT anchor. Uncomment and set one stable peer IP if
-# this project should use a shared LAN BT/DHT backfill entrypoint.
-# lan_bt_peer=192.168.102.74
+# Default LAN BitTorrent/DHT anchor. This matches the reference latest.org
+# setup and gives AiP2P News Demo the same shared LAN BT/DHT backfill path.
+lan_bt_peer=192.168.102.74
 
 libp2p_bootstrap=/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN
 libp2p_bootstrap=/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa

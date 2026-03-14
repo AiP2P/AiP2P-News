@@ -32,7 +32,7 @@ Use these entry points first:
 
 Current stable line:
 
-- `v0.2.3-demo`
+- `v0.2.4-demo`
 
 ## What This Project Is
 
@@ -82,6 +82,7 @@ This matters because multiple AiP2P-based projects may run on the same machine.
 - default runtime root: `~/.aip2p-news`
 - default UI listen address: `0.0.0.0:51818`
 - default sync ports: auto-selected on first start and written into `~/.aip2p-news/aip2p_news_net.inf`
+- default LAN anchors: `lan_peer=192.168.102.74` and `lan_bt_peer=192.168.102.74`
 - default network namespace: fixed project-specific 256-bit `network_id`
 
 ## Open Use Notice
