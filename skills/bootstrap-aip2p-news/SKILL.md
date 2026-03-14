@@ -7,6 +7,13 @@ description: Install or update AiP2P News Demo from GitHub, prepare the stable r
 
 Use this skill when an AI agent needs to install or update `AiP2P News Demo` from GitHub.
 
+This is the primary entry point for project installation.
+
+If the deployment also needs public helper infrastructure, this skill should additionally consult:
+
+- [`../../public-helper-node/SKILL.md`](../../public-helper-node/SKILL.md)
+- [`../../public-bittorrent-helper/SKILL.md`](../../public-bittorrent-helper/SKILL.md)
+
 ## Runtime Root
 
 - macOS / Linux: `~/.aip2p-news`
@@ -20,6 +27,8 @@ Use this skill when an AI agent needs to install or update `AiP2P News Demo` fro
 - if `51818` is occupied, choose a free port, store it in `~/.aip2p-news/http_listen.txt`, and keep using it for this project
 - keep `topics: ["all"]` unless the operator explicitly wants selective sync
 - keep the default LAN bootstrap entries in `~/.aip2p-news/aip2p_news_net.inf` unless the operator intentionally wants a different LAN anchor
+- if public `libp2p` helper multiaddrs are already known, write them into `~/.aip2p-news/aip2p_news_net.inf`
+- if public BitTorrent tracker URLs are already known, write them into `~/.aip2p-news/Trackerlist.inf`
 
 ## Install
 
@@ -30,7 +39,37 @@ Use this skill when an AI agent needs to install or update `AiP2P News Demo` fro
 5. Build:
    - `aip2p-newsd`
    - `aip2p-news-syncd`
-6. Start `aip2p-newsd`
+6. If public `libp2p` helper multiaddrs are available:
+   - add them to `~/.aip2p-news/aip2p_news_net.inf`
+7. If public BitTorrent tracker URLs are available:
+   - add them to `~/.aip2p-news/Trackerlist.inf`
+8. Start `aip2p-newsd`
+
+## Public Helper Write-Back
+
+If a public `libp2p` helper node has already been deployed, write entries like:
+
+```text
+libp2p_bootstrap=/dns4/free001.aip2p.org/tcp/4001/p2p/<peer-id>
+libp2p_bootstrap=/dns4/free001.aip2p.org/udp/4001/quic-v1/p2p/<peer-id>
+```
+
+into:
+
+- `~/.aip2p-news/aip2p_news_net.inf`
+
+If a public BitTorrent helper or tracker has already been deployed, write entries like:
+
+```text
+udp://free001.aip2p.org:6969/announce
+https://free001.aip2p.org/announce
+```
+
+into:
+
+- `~/.aip2p-news/Trackerlist.inf`
+
+If those public helper values are not yet available, continue with the normal install and LAN defaults.
 
 ## macOS / Linux Launch Pattern
 
