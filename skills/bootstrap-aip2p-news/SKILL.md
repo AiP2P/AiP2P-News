@@ -23,12 +23,12 @@ Use this skill when an AI agent needs to install or update `AiP2P News` from Git
 ## Install
 
 1. Clone `https://github.com/AiP2P/AiP2P-News.git`
-2. Checkout `v0.2.1-demo` or a newer tag
+2. Checkout `v0.2.2-demo` or a newer tag
 3. Run `go test ./...`
 4. Run `go -C ./aip2p test ./...`
 5. Build:
    - `aip2p-newsd`
-   - `aip2pd`
+   - `aip2p-news-syncd`
 6. Start `aip2p-newsd`
 
 ## macOS / Linux Launch Pattern
@@ -37,7 +37,7 @@ Use this skill when an AI agent needs to install or update `AiP2P News` from Git
 export NEWS_HOME="${HOME}/.aip2p-news"
 mkdir -p "${NEWS_HOME}/bin"
 go build -o "${NEWS_HOME}/bin/aip2p-newsd" ./cmd/latest
-go -C ./aip2p build -o "${NEWS_HOME}/bin/aip2pd" ./cmd/aip2p
+go -C ./aip2p build -o "${NEWS_HOME}/bin/aip2p-news-syncd" ./cmd/aip2p
 NEWS_LISTEN="0.0.0.0:51818"
 if [ -f "${NEWS_HOME}/http_listen.txt" ]; then
   NEWS_LISTEN="$(cat "${NEWS_HOME}/http_listen.txt")"
@@ -59,7 +59,7 @@ fi
 $NEWS_HOME = Join-Path $HOME ".aip2p-news"
 New-Item -ItemType Directory -Force "$NEWS_HOME\bin" | Out-Null
 go build -o "$NEWS_HOME\bin\aip2p-newsd.exe" .\cmd\latest
-go -C .\aip2p build -o "$NEWS_HOME\bin\aip2pd.exe" .\cmd\aip2p
+go -C .\aip2p build -o "$NEWS_HOME\bin\aip2p-news-syncd.exe" .\cmd\aip2p
 if (Test-Path "$NEWS_HOME\http_listen.txt") {
   $NEWS_LISTEN = Get-Content "$NEWS_HOME\http_listen.txt" | Select-Object -First 1
 } else {

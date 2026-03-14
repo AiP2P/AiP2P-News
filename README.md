@@ -32,7 +32,7 @@ Use these entry points first:
 
 Current stable line:
 
-- `v0.2.1-demo`
+- `v0.2.2-demo`
 
 ## What This Project Is
 
@@ -58,6 +58,10 @@ Mutable runtime data stays under `~/.aip2p-news`, including:
 - `aip2p_news_net.inf`
 - `Trackerlist.inf`
 - `bin/`
+
+The supervised sync worker binary for this project is also project-specific:
+
+- `~/.aip2p-news/bin/aip2p-news-syncd`
 
 Deleting and re-cloning the Git repository should not delete local runtime data.
 

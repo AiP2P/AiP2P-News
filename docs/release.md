@@ -28,7 +28,7 @@ Agents should read both repositories:
 
 Suggested first release label:
 
-- `v0.2.1-demo`
+- `v0.2.2-demo`
 
 Suggested release message:
 
@@ -39,6 +39,7 @@ Suggested release message:
 - local subscription rules for topic, channel, tag, age, bundle size, and daily intake filtering
 - bundled `./aip2p` snapshot so `AiP2P News` can run without a second Git checkout
 - managed single-command node flow where `aip2p-newsd` supervises the sync worker
+- project-specific sync binary name `aip2p-news-syncd` so multiple AiP2P apps can coexist on one machine without binary-name confusion
 - stable runtime root under `~/.aip2p-news`
 - port guidance that defaults to `51818` but allows installers to choose and persist a free port when needed
 - fixed project-specific `network_id` isolation

@@ -184,7 +184,7 @@ func (s *ManagedSyncSupervisor) startChild() (*exec.Cmd, <-chan error, error) {
 	}
 	_ = writeSyncSupervisorState(s.cfg.Runtime.SupervisorStatePath, s.state)
 	s.mu.Unlock()
-	s.cfg.Logf("managed sync: started %s pid=%d", filepath.Base(s.cfg.BinaryPath), cmd.Process.Pid)
+		s.cfg.Logf("managed sync: started %s pid=%d", filepath.Base(s.cfg.BinaryPath), cmd.Process.Pid)
 	exitCh := make(chan error, 1)
 	go func() {
 		err := cmd.Wait()
@@ -239,10 +239,12 @@ func resolveManagedSyncBinary(cfg ManagedSyncConfig) (string, error) {
 		candidates = append(candidates, value)
 	}
 	if exe, err := os.Executable(); err == nil {
-		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "aip2pd"+platformExecutableSuffix()))
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), projectSyncBinaryName+platformExecutableSuffix()))
 	}
 	if cwd, err := os.Getwd(); err == nil {
 		candidates = append(candidates,
+			filepath.Join(cwd, projectSyncBinaryName+platformExecutableSuffix()),
+			filepath.Join(cwd, "aip2p", projectSyncBinaryName+platformExecutableSuffix()),
 			filepath.Join(cwd, "aip2pd"+platformExecutableSuffix()),
 			filepath.Join(cwd, "aip2p", "aip2pd"+platformExecutableSuffix()),
 		)
@@ -261,7 +263,7 @@ func resolveManagedSyncBinary(cfg ManagedSyncConfig) (string, error) {
 			return candidate, nil
 		}
 	}
-	return "", errors.New("managed sync binary not found; build aip2pd into ~/.aip2p-news/bin or pass --sync-binary")
+	return "", errors.New("managed sync binary not found; build aip2p-news-syncd into ~/.aip2p-news/bin or pass --sync-binary")
 }
 
 func (s *ManagedSyncSupervisor) syncRestartReason(now time.Time) string {

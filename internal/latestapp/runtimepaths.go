@@ -11,6 +11,7 @@ import (
 const reservedTopicAll = "all"
 const latestOrgNetworkID = "2c2d6cf7b255ba20d6ad01135654933851b02bd00c65c2a6a54b97ab56590475"
 const defaultLANPeer = ""
+const projectSyncBinaryName = "aip2p-news-syncd"
 
 const defaultSubscriptionsJSON = "{\n  \"channels\": [],\n  \"topics\": [\"all\"],\n  \"tags\": [],\n  \"max_age_days\": 99999999,\n  \"max_bundle_mb\": 10,\n  \"max_items_per_day\": 999999999999\n}\n"
 
@@ -187,8 +188,8 @@ func DefaultRuntimePathsFromHome(home string) RuntimePaths {
 		TrackerPath: filepath.Join(root, "Trackerlist.inf"),
 		StatusPath:  filepath.Join(storeRoot, "sync", "status.json"),
 		MagnetsPath: filepath.Join(storeRoot, "sync", "magnets.txt"),
-		SyncLogPath: filepath.Join(root, "aip2pd-sync.log"),
-		SyncBinPath: filepath.Join(binRoot, "aip2pd"+platformExecutableSuffix()),
+		SyncLogPath: filepath.Join(root, "aip2p-news-sync.log"),
+		SyncBinPath: filepath.Join(binRoot, projectSyncBinaryName+platformExecutableSuffix()),
 		SupervisorStatePath: filepath.Join(root, "sync-supervisor.json"),
 	}
 }
@@ -198,6 +199,10 @@ func platformExecutableSuffix() string {
 		return ".exe"
 	}
 	return ""
+}
+
+func ProjectSyncBinaryNameForLogs() string {
+	return projectSyncBinaryName
 }
 
 func ensureFileIfMissing(path string, content []byte) error {

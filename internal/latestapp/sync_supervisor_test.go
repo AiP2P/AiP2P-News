@@ -40,7 +40,7 @@ func TestResolveManagedSyncBinaryPrefersRuntimePath(t *testing.T) {
 	if err := os.MkdirAll(binRoot, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(binRoot, "aip2pd"+platformExecutableSuffix())
+	want := filepath.Join(binRoot, projectSyncBinaryName+platformExecutableSuffix())
 	if err := os.WriteFile(want, []byte("stub"), 0o755); err != nil {
 		t.Fatal(err)
 	}

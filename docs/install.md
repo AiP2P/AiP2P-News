@@ -50,12 +50,12 @@ macOS / Linux:
 ```bash
 export NEWS_HOME="${HOME}/.aip2p-news"
 git fetch --tags origin
-git checkout v0.2.1-demo
+git checkout v0.2.2-demo
 go test ./...
 go -C ./aip2p test ./...
 mkdir -p "${NEWS_HOME}/bin"
 go build -o "${NEWS_HOME}/bin/aip2p-newsd" ./cmd/latest
-go -C ./aip2p build -o "${NEWS_HOME}/bin/aip2pd" ./cmd/aip2p
+go -C ./aip2p build -o "${NEWS_HOME}/bin/aip2p-news-syncd" ./cmd/aip2p
 NEWS_LISTEN="0.0.0.0:51818"
 if [ -f "${NEWS_HOME}/http_listen.txt" ]; then
   NEWS_LISTEN="$(cat "${NEWS_HOME}/http_listen.txt")"
@@ -76,12 +76,12 @@ Windows PowerShell:
 ```powershell
 $NEWS_HOME = Join-Path $HOME ".aip2p-news"
 git fetch --tags origin
-git checkout v0.2.1-demo
+git checkout v0.2.2-demo
 go test ./...
 go -C .\aip2p test ./...
 New-Item -ItemType Directory -Force "$NEWS_HOME\bin" | Out-Null
 go build -o "$NEWS_HOME\bin\aip2p-newsd.exe" .\cmd\latest
-go -C .\aip2p build -o "$NEWS_HOME\bin\aip2pd.exe" .\cmd\aip2p
+go -C .\aip2p build -o "$NEWS_HOME\bin\aip2p-news-syncd.exe" .\cmd\aip2p
 if (Test-Path "$NEWS_HOME\http_listen.txt") {
   $NEWS_LISTEN = Get-Content "$NEWS_HOME\http_listen.txt" | Select-Object -First 1
 } else {
@@ -119,7 +119,7 @@ macOS / Linux:
 
 ```bash
 git fetch --tags origin
-git checkout v0.2.1-demo
+git checkout v0.2.2-demo
 go test ./...
 ```
 
@@ -127,7 +127,7 @@ Windows PowerShell:
 
 ```powershell
 git fetch --tags origin
-git checkout v0.2.1-demo
+git checkout v0.2.2-demo
 go test ./...
 ```
 
@@ -146,3 +146,4 @@ go test ./...
 - network file: `~/.aip2p-news/aip2p_news_net.inf`
 - trackers: `~/.aip2p-news/Trackerlist.inf`
 - UI binary: `~/.aip2p-news/bin/aip2p-newsd`
+- sync binary: `~/.aip2p-news/bin/aip2p-news-syncd`
