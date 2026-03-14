@@ -1,0 +1,180 @@
+package latestapp
+
+import "time"
+
+type Message struct {
+	Protocol   string         `json:"protocol"`
+	Kind       string         `json:"kind"`
+	Author     string         `json:"author"`
+	CreatedAt  string         `json:"created_at"`
+	Channel    string         `json:"channel,omitempty"`
+	Title      string         `json:"title,omitempty"`
+	BodyFile   string         `json:"body_file"`
+	BodySHA256 string         `json:"body_sha256"`
+	ReplyTo    *MessageLink   `json:"reply_to,omitempty"`
+	Tags       []string       `json:"tags,omitempty"`
+	Extensions map[string]any `json:"extensions,omitempty"`
+}
+
+type MessageLink struct {
+	InfoHash string `json:"infohash,omitempty"`
+	Magnet   string `json:"magnet,omitempty"`
+}
+
+type Bundle struct {
+	InfoHash  string
+	Magnet    string
+	SizeBytes int64
+	Dir       string
+	ArchiveMD string
+	Message   Message
+	Body      string
+	CreatedAt time.Time
+}
+
+type Post struct {
+	Bundle
+	SourceName           string
+	SourceURL            string
+	EventTime            *time.Time
+	Topics               []string
+	ChannelGroup         string
+	PostType             string
+	Summary              string
+	ReplyCount           int
+	ReactionCount        int
+	VoteScore            int
+	TruthScoreAverage    *float64
+	SourceScoreAverage   *float64
+	LatestReactionAuthor string
+}
+
+type Reply struct {
+	Bundle
+	ParentInfoHash string
+}
+
+type Reaction struct {
+	Bundle
+	SubjectInfoHash string
+	ReactionType    string
+	VoteValue       int
+	ScoreValue      *float64
+	Explanation     string
+}
+
+type Index struct {
+	Bundles         []Bundle
+	Posts           []Post
+	PostByInfoHash  map[string]Post
+	RepliesByPost   map[string][]Reply
+	ReactionsByPost map[string][]Reaction
+	ChannelStats    []FacetStat
+	TopicStats      []FacetStat
+	SourceStats     []FacetStat
+}
+
+type FacetStat struct {
+	Name  string
+	Count int
+}
+
+type FeedOptions struct {
+	Channel string
+	Topic   string
+	Source  string
+	Sort    string
+	Query   string
+	Window  string
+	Now     time.Time
+}
+
+type FeedFacet struct {
+	Name   string
+	Count  int
+	URL    string
+	Active bool
+}
+
+type SortOption struct {
+	Name   string
+	Value  string
+	URL    string
+	Active bool
+}
+
+type TimeWindowOption struct {
+	Name   string
+	Value  string
+	URL    string
+	Active bool
+}
+
+type ActiveFilter struct {
+	Label string
+	URL   string
+}
+
+type SummaryStat struct {
+	Label string
+	Value string
+}
+
+type SubscriptionRules struct {
+	Channels       []string `json:"channels,omitempty"`
+	Topics         []string `json:"topics,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	MaxAgeDays     int      `json:"max_age_days,omitempty"`
+	MaxBundleMB    int      `json:"max_bundle_mb,omitempty"`
+	MaxItemsPerDay int64    `json:"max_items_per_day,omitempty"`
+}
+
+type ArchiveDay struct {
+	Date          string
+	StoryCount    int
+	ReplyCount    int
+	ReactionCount int
+	URL           string
+	Active        bool
+}
+
+type ArchiveEntry struct {
+	InfoHash   string
+	Kind       string
+	Title      string
+	Author     string
+	CreatedAt  time.Time
+	ArchiveMD  string
+	Day        string
+	ThreadURL  string
+	ViewerURL  string
+	RawURL     string
+	Channel    string
+	SourceName string
+}
+
+type HistoryManifestEntry struct {
+	Protocol  string   `json:"protocol"`
+	InfoHash  string   `json:"infohash"`
+	Magnet    string   `json:"magnet"`
+	SizeBytes int64    `json:"size_bytes,omitempty"`
+	Kind      string   `json:"kind,omitempty"`
+	Channel   string   `json:"channel,omitempty"`
+	Title     string   `json:"title,omitempty"`
+	Author    string   `json:"author,omitempty"`
+	CreatedAt string   `json:"created_at,omitempty"`
+	Project   string   `json:"project,omitempty"`
+	NetworkID string   `json:"network_id,omitempty"`
+	Topics    []string `json:"topics,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+}
+
+type HistoryManifestAPIResponse struct {
+	Project          string                 `json:"project"`
+	Version          string                 `json:"version"`
+	NetworkID        string                 `json:"network_id,omitempty"`
+	ManifestInfoHash string                 `json:"manifest_infohash,omitempty"`
+	GeneratedAt      string                 `json:"generated_at,omitempty"`
+	EntryCount       int                    `json:"entry_count"`
+	Entries          []HistoryManifestEntry `json:"entries"`
+}

@@ -1,0 +1,2246 @@
+package latestapp
+
+import (
+	"context"
+	"embed"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"io/fs"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+)
+
+//go:embed web/templates/*.html web/static/*
+var webFS embed.FS
+
+type App struct {
+	storeRoot  string
+	project    string
+	version    string
+	archive    string
+	rulesPath  string
+	netPath    string
+	listenAddr string
+	templates  *template.Template
+	loadIndex  func(storeRoot, project string) (Index, error)
+	syncIndex  func(index *Index, archiveRoot string) error
+	loadRules  func(path string) (SubscriptionRules, error)
+	loadNet    func(path string) (NetworkBootstrapConfig, error)
+	loadSync   func(storeRoot string) (SyncRuntimeStatus, error)
+	loadSuper  func(path string) (SyncSupervisorState, error)
+	fetchLANBT func(ctx context.Context, value, expectedNetworkID string) (NetworkBootstrapResponse, error)
+}
+
+type NavItem struct {
+	Name   string
+	URL    string
+	Active bool
+}
+
+type DirectoryItem struct {
+	Name          string
+	URL           string
+	ExternalURL   string
+	StoryCount    int
+	ReplyCount    int
+	ReactionCount int
+	AvgTruth      string
+}
+
+type NodeStatusEntry struct {
+	Label  string
+	Value  string
+	Detail string
+	Tone   string
+}
+
+type NodeStatusCard struct {
+	Label  string
+	Value  string
+	Detail string
+	Tone   string
+}
+
+type NodeStatus struct {
+	Summary       string
+	SummaryTone   string
+	SummaryDetail string
+	Entries       []NodeStatusEntry
+	Dashboard     []NodeStatusCard
+}
+
+type HomePageData struct {
+	Project        string
+	Version        string
+	Posts          []Post
+	Now            time.Time
+	ListenAddr     string
+	Options        FeedOptions
+	PageNav        []NavItem
+	TopicFacets    []FeedFacet
+	SourceFacets   []FeedFacet
+	SortOptions    []SortOption
+	WindowOptions  []TimeWindowOption
+	ActiveFilters  []ActiveFilter
+	SummaryStats   []SummaryStat
+	TotalPostCount int
+	Subscriptions  SubscriptionRules
+	NodeStatus     NodeStatus
+}
+
+type CollectionPageData struct {
+	Project        string
+	Version        string
+	Kind           string
+	Name           string
+	Path           string
+	DirectoryURL   string
+	APIPath        string
+	Now            time.Time
+	Posts          []Post
+	Options        FeedOptions
+	PageNav        []NavItem
+	SortOptions    []SortOption
+	WindowOptions  []TimeWindowOption
+	SideLabel      string
+	SideFacets     []FeedFacet
+	ActiveFilters  []ActiveFilter
+	SummaryStats   []SummaryStat
+	TotalPostCount int
+	ExternalURL    string
+	NodeStatus     NodeStatus
+}
+
+type DirectoryPageData struct {
+	Project      string
+	Version      string
+	Kind         string
+	Path         string
+	APIPath      string
+	Now          time.Time
+	PageNav      []NavItem
+	Items        []DirectoryItem
+	SummaryStats []SummaryStat
+	NodeStatus   NodeStatus
+}
+
+type PostPageData struct {
+	Project    string
+	Version    string
+	PageNav    []NavItem
+	Post       Post
+	Replies    []Reply
+	Reactions  []Reaction
+	Related    []Post
+	NodeStatus NodeStatus
+}
+
+type ArchiveIndexPageData struct {
+	Project       string
+	Version       string
+	PageNav       []NavItem
+	Now           time.Time
+	Days          []ArchiveDay
+	SummaryStats  []SummaryStat
+	Subscriptions SubscriptionRules
+	NodeStatus    NodeStatus
+}
+
+type ArchiveDayPageData struct {
+	Project       string
+	Version       string
+	PageNav       []NavItem
+	Now           time.Time
+	Day           string
+	Days          []ArchiveDay
+	Entries       []ArchiveEntry
+	SummaryStats  []SummaryStat
+	Subscriptions SubscriptionRules
+	NodeStatus    NodeStatus
+}
+
+type ArchiveMessagePageData struct {
+	Project    string
+	Version    string
+	PageNav    []NavItem
+	Now        time.Time
+	Entry      ArchiveEntry
+	Content    string
+	Thread     string
+	RawURL     string
+	DayURL     string
+	Archive    string
+	NodeStatus NodeStatus
+}
+
+type NetworkPageData struct {
+	Project       string
+	Version       string
+	ListenAddr    string
+	PageNav       []NavItem
+	Now           time.Time
+	NodeStatus    NodeStatus
+	SyncStatus    SyncRuntimeStatus
+	Supervisor    SyncSupervisorState
+	LANPeers      []string
+	LANBTAnchors  []LANBTAnchorStatus
+	LANBTOverall  string
+	LANBTHasMatch bool
+}
+
+type LANBTAnchorStatus struct {
+	Peer        string
+	Nodes       []string
+	MatchedNode string
+	Error       string
+}
+
+type NetworkBootstrapResponse struct {
+	Project         string   `json:"project"`
+	Version         string   `json:"version"`
+	NetworkID       string   `json:"network_id"`
+	PeerID          string   `json:"peer_id"`
+	ListenAddrs     []string `json:"listen_addrs"`
+	DialAddrs       []string `json:"dial_addrs"`
+	BitTorrentNodes []string `json:"bittorrent_nodes,omitempty"`
+}
+
+func New(storeRoot, project, version, archiveRoot, rulesPath, netPath string) (*App, error) {
+	if err := ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, netPath); err != nil {
+		return nil, err
+	}
+	tmpl, err := template.New("").
+		Funcs(template.FuncMap{
+			"formatTime": func(t time.Time) string { return t.Format("2006-01-02 15:04 MST") },
+			"formatOptionalTime": func(t *time.Time) string {
+				if t == nil {
+					return "none yet"
+				}
+				return t.Format("2006-01-02 15:04 MST")
+			},
+			"formatScore": func(value *float64) string {
+				if value == nil {
+					return "-"
+				}
+				return strings.TrimRight(strings.TrimRight(strconv.FormatFloat(*value, 'f', 2, 64), "0"), ".")
+			},
+			"join":          strings.Join,
+			"lower":         strings.ToLower,
+			"reactionLabel": reactionLabel,
+			"sourcePath":    sourcePath,
+			"topicPath":     topicPath,
+		}).
+		ParseFS(webFS, "web/templates/*.html")
+	if err != nil {
+		return nil, err
+	}
+	return &App{
+		storeRoot:  storeRoot,
+		project:    project,
+		version:    strings.TrimSpace(version),
+		archive:    archiveRoot,
+		rulesPath:  rulesPath,
+		netPath:    netPath,
+		templates:  tmpl,
+		loadIndex:  LoadIndex,
+		syncIndex:  SyncMarkdownArchive,
+		loadRules:  LoadSubscriptionRules,
+		loadNet:    LoadNetworkBootstrapConfig,
+		loadSync:   loadSyncRuntimeStatus,
+		loadSuper:  loadSyncSupervisorState,
+		fetchLANBT: fetchNetworkBootstrapResponse,
+	}, nil
+}
+
+func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, netPath string) error {
+	storeRoot = strings.TrimSpace(storeRoot)
+	if storeRoot != "" {
+		for _, dir := range []string{
+			filepath.Join(storeRoot, "data"),
+			filepath.Join(storeRoot, "torrents"),
+		} {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return err
+			}
+		}
+	}
+	archiveRoot = strings.TrimSpace(archiveRoot)
+	if archiveRoot != "" {
+		if err := os.MkdirAll(archiveRoot, 0o755); err != nil {
+			return err
+		}
+	}
+	runtimeRoot := strings.TrimSpace(filepath.Dir(archiveRoot))
+	if runtimeRoot != "" {
+		if err := os.MkdirAll(filepath.Join(runtimeRoot, "bin"), 0o755); err != nil {
+			return err
+		}
+	}
+	rulesPath = strings.TrimSpace(rulesPath)
+	if rulesPath != "" {
+		if err := os.MkdirAll(filepath.Dir(rulesPath), 0o755); err != nil {
+			return err
+		}
+	if err := ensureFileIfMissing(rulesPath, []byte(defaultSubscriptionsJSON)); err != nil {
+		return err
+	}
+	}
+	netPath = strings.TrimSpace(netPath)
+	if netPath != "" {
+		if err := os.MkdirAll(filepath.Dir(netPath), 0o755); err != nil {
+			return err
+		}
+		content, err := defaultLatestNetINF()
+		if err != nil {
+			return err
+		}
+	if err := ensureFileIfMissing(netPath, []byte(content)); err != nil {
+		return err
+	}
+	if err := ensureFileIfMissing(filepath.Join(filepath.Dir(netPath), "Trackerlist.inf"), []byte(defaultTrackerListINF)); err != nil {
+		return err
+	}
+	if err := appendNetworkIDIfMissing(netPath, latestOrgNetworkID); err != nil {
+		return err
+	}
+		if err := appendLANPeerIfMissing(netPath, defaultLANPeer); err != nil {
+			return err
+		}
+		if err := appendLANTorrentPeerIfMissing(netPath, defaultLANPeer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *App) ListenAndServe(addr string) error {
+	a.listenAddr = addr
+	return http.ListenAndServe(addr, a.handler())
+}
+
+func (a *App) handler() http.Handler {
+	mux := http.NewServeMux()
+	staticFS, err := fs.Sub(webFS, "web/static")
+	if err != nil {
+		panic(err)
+	}
+	mux.HandleFunc("/", a.handleHome)
+	mux.HandleFunc("/posts/", a.handlePost)
+	mux.HandleFunc("/sources", a.handleSources)
+	mux.HandleFunc("/sources/", a.handleSource)
+	mux.HandleFunc("/topics", a.handleTopics)
+	mux.HandleFunc("/topics/", a.handleTopic)
+	mux.HandleFunc("/network", a.handleNetwork)
+	mux.HandleFunc("/archive", a.handleArchiveIndex)
+	mux.HandleFunc("/archive/", a.handleArchiveSubtree)
+	mux.HandleFunc("/api/feed", a.handleAPIFeed)
+	mux.HandleFunc("/api/history/list", a.handleAPIHistoryList)
+	mux.HandleFunc("/api/history/manifest", a.handleAPIHistoryList)
+	mux.HandleFunc("/api/network/bootstrap", a.handleAPINetworkBootstrap)
+	mux.HandleFunc("/api/posts/", a.handleAPIPost)
+	mux.HandleFunc("/api/torrents/", a.handleAPITorrent)
+	mux.HandleFunc("/api/sources", a.handleAPISources)
+	mux.HandleFunc("/api/sources/", a.handleAPISource)
+	mux.HandleFunc("/api/topics", a.handleAPITopics)
+	mux.HandleFunc("/api/topics/", a.handleAPITopic)
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	return mux
+}
+
+func (a *App) index() (Index, error) {
+	index, err := a.loadIndex(a.storeRoot, a.project)
+	if err != nil {
+		return Index{}, err
+	}
+	if a.loadRules != nil {
+		rules, err := a.loadRules(a.rulesPath)
+		if err != nil {
+			return Index{}, err
+		}
+		index = ApplySubscriptionRules(index, a.project, rules)
+	}
+	if a.syncIndex != nil {
+		if err := a.syncIndex(&index, a.archive); err != nil {
+			return Index{}, err
+		}
+	}
+	return index, nil
+}
+
+func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rules, err := a.subscriptionRules()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	opts := readFeedOptions(r)
+	posts := index.FilterPosts(opts)
+	data := HomePageData{
+		Project:        a.project,
+		Version:        a.version,
+		Posts:          posts,
+		Now:            time.Now(),
+		ListenAddr:     a.httpListenAddr(),
+		Options:        opts,
+		PageNav:        buildPageNav("/"),
+		TopicFacets:    buildFeedFacets(index.TopicStats, opts, "/", "topic"),
+		SourceFacets:   buildFeedFacets(index.SourceStats, opts, "/", "source"),
+		SortOptions:    buildSortOptions(opts, "/"),
+		WindowOptions:  buildWindowOptions(opts, "/"),
+		ActiveFilters:  buildActiveFilters(opts, "/"),
+		SummaryStats:   buildSummaryStats(posts),
+		TotalPostCount: len(index.Posts),
+		Subscriptions:  rules,
+		NodeStatus:     a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "home.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handlePost(w http.ResponseWriter, r *http.Request) {
+	infoHash := pathValue("/posts/", r.URL.Path)
+	if infoHash == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	post, ok := index.PostByInfoHash[strings.ToLower(infoHash)]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	data := PostPageData{
+		Project:    a.project,
+		Version:    a.version,
+		PageNav:    buildPageNav("/"),
+		Post:       post,
+		Replies:    index.RepliesByPost[strings.ToLower(infoHash)],
+		Reactions:  index.ReactionsByPost[strings.ToLower(infoHash)],
+		Related:    index.RelatedPosts(infoHash, 4),
+		NodeStatus: a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "post.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleNetwork(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/network" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	syncStatus, err := a.syncRuntimeStatus()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	supervisorStatus, err := a.syncSupervisorStatus()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	netCfg, err := a.networkBootstrap()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	anchors, hasLANBTMatch, lanBTOverall := a.lanBTStatus(r.Context(), netCfg)
+	data := NetworkPageData{
+		Project:       a.project,
+		Version:       a.version,
+		ListenAddr:    a.httpListenAddr(),
+		PageNav:       buildPageNav("/network"),
+		Now:           time.Now(),
+		NodeStatus:    a.nodeStatus(index),
+		SyncStatus:    syncStatus,
+		Supervisor:    supervisorStatus,
+		LANPeers:      append([]string(nil), netCfg.LANPeers...),
+		LANBTAnchors:  anchors,
+		LANBTHasMatch: hasLANBTMatch,
+		LANBTOverall:  lanBTOverall,
+	}
+	if err := a.templates.ExecuteTemplate(w, "network.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleSources(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/sources" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data := DirectoryPageData{
+		Project:      a.project,
+		Version:      a.version,
+		Kind:         "Sources",
+		Path:         "/sources",
+		APIPath:      "/api/sources",
+		Now:          time.Now(),
+		PageNav:      buildPageNav("/sources"),
+		Items:        buildSourceDirectory(index),
+		SummaryStats: buildDirectorySummaryStats(index.SourceStats, index.Posts),
+		NodeStatus:   a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "directory.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleSource(w http.ResponseWriter, r *http.Request) {
+	name := pathValue("/sources/", r.URL.Path)
+	if name == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	opts := readFeedOptions(r)
+	opts.Source = name
+	posts := index.FilterPosts(opts)
+	if !hasSource(index, name) {
+		http.NotFound(w, r)
+		return
+	}
+	fullSet := index.FilterPosts(FeedOptions{Source: name, Now: opts.Now})
+	data := CollectionPageData{
+		Project:        a.project,
+		Version:        a.version,
+		Kind:           "Source",
+		Name:           name,
+		Path:           sourcePath(name),
+		DirectoryURL:   "/sources",
+		APIPath:        "/api" + sourcePath(name),
+		Now:            time.Now(),
+		Posts:          posts,
+		Options:        opts,
+		PageNav:        buildPageNav("/sources"),
+		SortOptions:    buildSortOptions(opts, sourcePath(name), "source"),
+		WindowOptions:  buildWindowOptions(opts, sourcePath(name), "source"),
+		SideLabel:      "Topics from this source",
+		SideFacets:     buildFacetLinks(topicStatsForPosts(fullSet), opts, sourcePath(name), "topic", "source"),
+		ActiveFilters:  buildActiveFilters(opts, sourcePath(name), "source"),
+		SummaryStats:   buildSummaryStats(posts),
+		TotalPostCount: len(fullSet),
+		ExternalURL:    sourceURLFromPosts(fullSet),
+		NodeStatus:     a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "collection.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleTopics(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/topics" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data := DirectoryPageData{
+		Project:      a.project,
+		Version:      a.version,
+		Kind:         "Topics",
+		Path:         "/topics",
+		APIPath:      "/api/topics",
+		Now:          time.Now(),
+		PageNav:      buildPageNav("/topics"),
+		Items:        buildTopicDirectory(index),
+		SummaryStats: buildDirectorySummaryStats(index.TopicStats, index.Posts),
+		NodeStatus:   a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "directory.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleTopic(w http.ResponseWriter, r *http.Request) {
+	name := pathValue("/topics/", r.URL.Path)
+	if name == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	opts := readFeedOptions(r)
+	opts.Topic = name
+	posts := index.FilterPosts(opts)
+	if !hasTopic(index, name) {
+		http.NotFound(w, r)
+		return
+	}
+	fullSet := index.FilterPosts(FeedOptions{Topic: name, Now: opts.Now})
+	data := CollectionPageData{
+		Project:        a.project,
+		Version:        a.version,
+		Kind:           "Topic",
+		Name:           name,
+		Path:           topicPath(name),
+		DirectoryURL:   "/topics",
+		APIPath:        "/api" + topicPath(name),
+		Now:            time.Now(),
+		Posts:          posts,
+		Options:        opts,
+		PageNav:        buildPageNav("/topics"),
+		SortOptions:    buildSortOptions(opts, topicPath(name), "topic"),
+		WindowOptions:  buildWindowOptions(opts, topicPath(name), "topic"),
+		SideLabel:      "Sources covering this topic",
+		SideFacets:     buildFacetLinks(sourceStatsForPosts(fullSet), opts, topicPath(name), "source", "topic"),
+		ActiveFilters:  buildActiveFilters(opts, topicPath(name), "topic"),
+		SummaryStats:   buildSummaryStats(posts),
+		TotalPostCount: len(fullSet),
+		NodeStatus:     a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "collection.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleArchiveIndex(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/archive" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rules, err := a.subscriptionRules()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	days := buildArchiveDays(index)
+	data := ArchiveIndexPageData{
+		Project:       a.project,
+		Version:       a.version,
+		PageNav:       buildPageNav("/archive"),
+		Now:           time.Now(),
+		Days:          days,
+		SummaryStats:  buildArchiveSummaryStats(days, len(index.Bundles)),
+		Subscriptions: rules,
+		NodeStatus:    a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "archive_index.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleArchiveSubtree(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/archive/messages/"):
+		a.handleArchiveMessage(w, r)
+	case strings.HasPrefix(r.URL.Path, "/archive/raw/"):
+		a.handleArchiveRaw(w, r)
+	default:
+		a.handleArchiveDay(w, r)
+	}
+}
+
+func (a *App) handleArchiveDay(w http.ResponseWriter, r *http.Request) {
+	day := pathValue("/archive/", r.URL.Path)
+	if day == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rules, err := a.subscriptionRules()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	days := buildArchiveDays(index)
+	if !hasArchiveDay(days, day) {
+		http.NotFound(w, r)
+		return
+	}
+	entries := buildArchiveEntries(index, day)
+	data := ArchiveDayPageData{
+		Project:       a.project,
+		Version:       a.version,
+		PageNav:       buildPageNav("/archive"),
+		Now:           time.Now(),
+		Day:           day,
+		Days:          markArchiveDayActive(days, day),
+		Entries:       entries,
+		SummaryStats:  buildArchiveDayStats(entries),
+		Subscriptions: rules,
+		NodeStatus:    a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "archive_day.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleArchiveMessage(w http.ResponseWriter, r *http.Request) {
+	infoHash := pathValue("/archive/messages/", r.URL.Path)
+	if infoHash == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	entry, ok := findArchiveEntry(index, infoHash)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	content, err := os.ReadFile(entry.ArchiveMD)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data := ArchiveMessagePageData{
+		Project:    a.project,
+		Version:    a.version,
+		PageNav:    buildPageNav("/archive"),
+		Now:        time.Now(),
+		Entry:      entry,
+		Content:    string(content),
+		Thread:     entry.ThreadURL,
+		RawURL:     entry.RawURL,
+		DayURL:     "/archive/" + entry.Day,
+		Archive:    entry.ArchiveMD,
+		NodeStatus: a.nodeStatus(index),
+	}
+	if err := a.templates.ExecuteTemplate(w, "archive_message.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *App) handleArchiveRaw(w http.ResponseWriter, r *http.Request) {
+	infoHash := pathValue("/archive/raw/", r.URL.Path)
+	if infoHash == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	entry, ok := findArchiveEntry(index, infoHash)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	http.ServeFile(w, r, entry.ArchiveMD)
+}
+
+func (a *App) handleAPIFeed(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/feed" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	opts := readFeedOptions(r)
+	posts := index.FilterPosts(opts)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"project": a.project,
+		"scope":   "feed",
+		"options": apiOptions(opts),
+		"summary": buildSummaryStats(posts),
+		"posts":   apiPosts(posts),
+		"facets": map[string]any{
+			"channels": index.ChannelStats,
+			"topics":   index.TopicStats,
+			"sources":  index.SourceStats,
+		},
+	})
+}
+
+func (a *App) handleAPIHistoryList(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/history/list" && r.URL.Path != "/api/history/manifest" {
+		http.NotFound(w, r)
+		return
+	}
+	payload, err := a.latestHistoryListPayload()
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, payload)
+}
+
+func (a *App) handleAPINetworkBootstrap(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/network/bootstrap" {
+		http.NotFound(w, r)
+		return
+	}
+	syncStatus, err := a.syncRuntimeStatus()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !syncStatus.LibP2P.Enabled || strings.TrimSpace(syncStatus.LibP2P.PeerID) == "" {
+		http.Error(w, "libp2p sync daemon is not online on this node", http.StatusServiceUnavailable)
+		return
+	}
+	dialAddrs := dialableLibP2PAddrs(syncStatus, requestBootstrapHost(r))
+	if len(dialAddrs) == 0 {
+		http.Error(w, "no dialable libp2p addresses available on this node", http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, NetworkBootstrapResponse{
+		Project:         a.project,
+		Version:         a.version,
+		NetworkID:       syncStatus.NetworkID,
+		PeerID:          syncStatus.LibP2P.PeerID,
+		ListenAddrs:     append([]string(nil), syncStatus.LibP2P.ListenAddrs...),
+		DialAddrs:       dialAddrs,
+		BitTorrentNodes: dialableBitTorrentNodes(syncStatus, requestBootstrapHost(r)),
+	})
+}
+
+func (a *App) latestHistoryListPayload() (HistoryManifestAPIResponse, error) {
+	index, err := a.loadIndex(a.storeRoot, a.project)
+	if err != nil {
+		return HistoryManifestAPIResponse{}, err
+	}
+	if len(index.Bundles) == 0 {
+		return HistoryManifestAPIResponse{}, os.ErrNotExist
+	}
+	var networkID string
+	if syncStatus, err := a.syncRuntimeStatus(); err == nil {
+		networkID = strings.TrimSpace(syncStatus.NetworkID)
+	}
+	entries := make([]HistoryManifestEntry, 0, len(index.Bundles))
+	for _, bundle := range index.Bundles {
+		entries = append(entries, HistoryManifestEntry{
+			Protocol:  "aip2p-sync/0.1",
+			InfoHash:  strings.ToLower(strings.TrimSpace(bundle.InfoHash)),
+			Magnet:    strings.TrimSpace(bundle.Magnet),
+			SizeBytes: bundle.SizeBytes,
+			Kind:      strings.TrimSpace(bundle.Message.Kind),
+			Channel:   strings.TrimSpace(bundle.Message.Channel),
+			Title:     strings.TrimSpace(bundle.Message.Title),
+			Author:    strings.TrimSpace(bundle.Message.Author),
+			CreatedAt: strings.TrimSpace(bundle.Message.CreatedAt),
+			Project:   a.project,
+			NetworkID: networkID,
+			Topics:    stringSlice(bundle.Message.Extensions["topics"]),
+			Tags:      append([]string(nil), bundle.Message.Tags...),
+		})
+	}
+	return HistoryManifestAPIResponse{
+		Project:     a.project,
+		Version:     a.version,
+		NetworkID:   networkID,
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		EntryCount:  len(entries),
+		Entries:     entries,
+	}, nil
+}
+
+func (a *App) handleAPIPost(w http.ResponseWriter, r *http.Request) {
+	infoHash := pathValue("/api/posts/", r.URL.Path)
+	if infoHash == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	post, ok := index.PostByInfoHash[strings.ToLower(infoHash)]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"project":   a.project,
+		"scope":     "post",
+		"post":      apiPost(post, true),
+		"replies":   apiReplies(index.RepliesByPost[strings.ToLower(infoHash)]),
+		"reactions": apiReactions(index.ReactionsByPost[strings.ToLower(infoHash)]),
+		"related":   apiPosts(index.RelatedPosts(infoHash, 4)),
+	})
+}
+
+func (a *App) handleAPITorrent(w http.ResponseWriter, r *http.Request) {
+	infoHash := pathValue("/api/torrents/", r.URL.Path)
+	infoHash = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(infoHash)), ".torrent")
+	if infoHash == "" {
+		http.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(a.storeRoot, "torrents", infoHash+".torrent")
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-bittorrent")
+	http.ServeFile(w, r, path)
+}
+
+func (a *App) handleAPISources(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/sources" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"project": a.project,
+		"scope":   "sources",
+		"items":   buildSourceDirectory(index),
+	})
+}
+
+func (a *App) handleAPISource(w http.ResponseWriter, r *http.Request) {
+	name := pathValue("/api/sources/", r.URL.Path)
+	if name == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !hasSource(index, name) {
+		http.NotFound(w, r)
+		return
+	}
+	opts := readFeedOptions(r)
+	opts.Source = name
+	posts := index.FilterPosts(opts)
+	fullSet := index.FilterPosts(FeedOptions{Source: name, Now: opts.Now})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"project": a.project,
+		"scope":   "source",
+		"name":    name,
+		"options": apiOptions(opts),
+		"summary": buildSummaryStats(posts),
+		"posts":   apiPosts(posts),
+		"facets": map[string]any{
+			"channels": channelStatsForPosts(fullSet),
+			"topics":   topicStatsForPosts(fullSet),
+		},
+		"source_url": sourceURLFromPosts(fullSet),
+	})
+}
+
+func (a *App) handleAPITopics(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/topics" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"project": a.project,
+		"scope":   "topics",
+		"items":   buildTopicDirectory(index),
+	})
+}
+
+func (a *App) handleAPITopic(w http.ResponseWriter, r *http.Request) {
+	name := pathValue("/api/topics/", r.URL.Path)
+	if name == "" {
+		http.NotFound(w, r)
+		return
+	}
+	index, err := a.index()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !hasTopic(index, name) {
+		http.NotFound(w, r)
+		return
+	}
+	opts := readFeedOptions(r)
+	opts.Topic = name
+	posts := index.FilterPosts(opts)
+	fullSet := index.FilterPosts(FeedOptions{Topic: name, Now: opts.Now})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"project": a.project,
+		"scope":   "topic",
+		"name":    name,
+		"options": apiOptions(opts),
+		"summary": buildSummaryStats(posts),
+		"posts":   apiPosts(posts),
+		"facets": map[string]any{
+			"channels": channelStatsForPosts(fullSet),
+			"sources":  sourceStatsForPosts(fullSet),
+		},
+	})
+}
+
+func readFeedOptions(r *http.Request) FeedOptions {
+	return FeedOptions{
+		Channel: strings.TrimSpace(r.URL.Query().Get("channel")),
+		Topic:   strings.TrimSpace(r.URL.Query().Get("topic")),
+		Source:  strings.TrimSpace(r.URL.Query().Get("source")),
+		Sort:    strings.TrimSpace(r.URL.Query().Get("sort")),
+		Query:   strings.TrimSpace(r.URL.Query().Get("q")),
+		Window:  canonicalWindow(r.URL.Query().Get("window")),
+		Now:     time.Now(),
+	}
+}
+
+func (a *App) subscriptionRules() (SubscriptionRules, error) {
+	if a.loadRules == nil {
+		return SubscriptionRules{}, nil
+	}
+	return a.loadRules(a.rulesPath)
+}
+
+func (a *App) nodeStatus(index Index) NodeStatus {
+	storeState := "ready"
+	storeTone := "good"
+	if _, err := os.Stat(filepath.Join(a.storeRoot, "data")); err != nil {
+		storeState = "missing"
+		storeTone = "warn"
+	}
+	torrentCount := 0
+	if matches, err := filepath.Glob(filepath.Join(a.storeRoot, "torrents", "*.torrent")); err == nil {
+		torrentCount = len(matches)
+	}
+	netCfg, netErr := a.networkBootstrap()
+	syncStatus, syncErr := a.syncRuntimeStatus()
+
+	if syncErr == nil && !syncStatus.UpdatedAt.IsZero() {
+		return buildLiveNodeStatus(index, storeState, storeTone, torrentCount, netCfg, syncStatus, a.httpListenAddr())
+	}
+
+	discoveryValue := "not loaded"
+	discoveryTone := "warn"
+	discoveryDetail := "Add aip2p_news_net.inf to declare bootstrap peers and routers."
+	if netErr != nil {
+		discoveryValue = "config error"
+		discoveryTone = "bad"
+		discoveryDetail = "aip2p_news_net.inf could not be read."
+	} else if netCfg.Exists {
+		discoveryValue = netCfg.FileName() + " loaded"
+		discoveryTone = "good"
+		discoveryDetail = "Bootstrap profile is present on this node."
+	}
+	dhtValue := "not configured"
+	dhtTone := "warn"
+	dhtDetail := "Add dht_router entries to prepare BitTorrent-assisted discovery."
+	if netErr != nil {
+		dhtValue = "config error"
+		dhtTone = "bad"
+		dhtDetail = "BitTorrent router config could not be parsed."
+	} else if len(netCfg.DHTRouters) > 0 {
+		dhtValue = fmt.Sprintf("%d bootstrap routers configured", len(netCfg.DHTRouters))
+		dhtTone = "good"
+		dhtDetail = "Router list is ready. Live DHT traffic will come from the sync daemon."
+	}
+	libp2pValue := "not configured"
+	libp2pTone := "warn"
+	libp2pDetail := "Add libp2p_bootstrap peers to prepare the live control plane."
+	if netErr != nil {
+		libp2pValue = "config error"
+		libp2pTone = "bad"
+		libp2pDetail = "libp2p bootstrap config could not be parsed."
+	} else if len(netCfg.LibP2PBootstrap) > 0 {
+		libp2pValue = fmt.Sprintf("%d bootstrap peers configured", len(netCfg.LibP2PBootstrap))
+		libp2pTone = "good"
+		libp2pDetail = "Peer list is ready. Live peer dialing will come from the sync daemon."
+	}
+	rendezvousValue := "not configured"
+	rendezvousTone := "warn"
+	rendezvousDetail := "Add libp2p_rendezvous topics so peers can meet on shared namespaces."
+	if netErr != nil {
+		rendezvousValue = "config error"
+		rendezvousTone = "bad"
+		rendezvousDetail = "Rendezvous config could not be parsed."
+	} else if len(netCfg.LibP2PRendezvous) > 0 {
+		rendezvousValue = fmt.Sprintf("%d rendezvous topics configured", len(netCfg.LibP2PRendezvous))
+		rendezvousTone = "good"
+		rendezvousDetail = "Namespaces are ready for peer discovery."
+	}
+	networkIDValue := "not configured"
+	networkIDTone := "warn"
+	networkIDDetail := "Add a stable 256-bit network_id so same-name projects do not share the same AiP2P discovery space."
+	if netErr != nil {
+		networkIDValue = "config error"
+		networkIDTone = "bad"
+		networkIDDetail = "network_id could not be parsed from aip2p_news_net.inf."
+	} else if netCfg.NetworkID != "" {
+		networkIDValue = netCfg.NetworkID
+		networkIDTone = "good"
+		networkIDDetail = "This node is pinned to one AiP2P network namespace even if other projects reuse the same human-readable name."
+	}
+
+	summary := "offline"
+	summaryTone := "warn"
+	summaryDetail := "No bootstrap transports are configured yet."
+	switch {
+	case netErr != nil:
+		summary = "config error"
+		summaryTone = "bad"
+		summaryDetail = "aip2p_news_net.inf exists but could not be parsed."
+	case len(netCfg.LibP2PBootstrap) > 0 && len(netCfg.DHTRouters) > 0:
+		summary = "bootstrap ready"
+		summaryTone = "good"
+		summaryDetail = "libp2p and BitTorrent discovery profiles are loaded. aip2p.news is still UI/index mode until the sync daemon is running."
+	case len(netCfg.LibP2PBootstrap) > 0 || len(netCfg.DHTRouters) > 0:
+		summary = "partially ready"
+		summaryTone = "warn"
+		summaryDetail = "At least one transport profile is loaded, but the network bootstrap set is incomplete."
+	}
+	return NodeStatus{
+		Summary:       summary,
+		SummaryTone:   summaryTone,
+		SummaryDetail: summaryDetail,
+		Entries: []NodeStatusEntry{
+			{Label: "Overall", Value: summary, Detail: summaryDetail, Tone: summaryTone},
+			{Label: "HTTP UI", Value: "online " + a.httpListenAddr(), Detail: "The local dashboard is reachable on this node.", Tone: "good"},
+			{Label: "Bundle store", Value: fmt.Sprintf("%s · %d bundles", storeState, len(index.Bundles)), Detail: "AiP2P News is reading from the local immutable bundle store.", Tone: storeTone},
+			{Label: "Torrent refs", Value: fmt.Sprintf("%d available", torrentCount), Detail: "Immutable torrent references currently mirrored on this node.", Tone: "good"},
+			{Label: "Sync daemon", Value: "not running", Detail: "Run `aip2p sync` to turn bootstrap configuration into a live network session.", Tone: "warn"},
+			{Label: "libp2p pubsub", Value: "not running", Detail: "Pubsub topic joins start when the sync daemon is running.", Tone: "warn"},
+			{Label: "Discovery file", Value: discoveryValue, Detail: discoveryDetail, Tone: discoveryTone},
+			{Label: "Network ID", Value: networkIDValue, Detail: networkIDDetail, Tone: networkIDTone},
+			{Label: "LAN mDNS", Value: "not running", Detail: "Local network discovery starts when the sync daemon is running.", Tone: "warn"},
+			{Label: "libp2p bootstrap", Value: libp2pValue, Detail: libp2pDetail, Tone: libp2pTone},
+			{Label: "libp2p rendezvous", Value: rendezvousValue, Detail: rendezvousDetail, Tone: rendezvousTone},
+			{Label: "BitTorrent DHT", Value: dhtValue, Detail: dhtDetail, Tone: dhtTone},
+		},
+		Dashboard: []NodeStatusCard{
+			{Label: "Node mode", Value: summary, Detail: summaryDetail, Tone: summaryTone},
+			{Label: "libp2p pubsub", Value: "not running", Detail: "Pubsub topic joins start when the sync daemon is running.", Tone: "warn"},
+			{Label: "LAN mDNS", Value: "not running", Detail: "Local network discovery starts when the sync daemon is running.", Tone: "warn"},
+			{Label: "libp2p bootstrap", Value: libp2pValue, Detail: libp2pDetail, Tone: libp2pTone},
+			{Label: "BitTorrent DHT", Value: dhtValue, Detail: dhtDetail, Tone: dhtTone},
+			{Label: "Discovery profile", Value: discoveryValue, Detail: discoveryDetail, Tone: discoveryTone},
+			{Label: "Network ID", Value: networkIDValue, Detail: networkIDDetail, Tone: networkIDTone},
+		},
+	}
+}
+
+func buildLiveNodeStatus(index Index, storeState, storeTone string, torrentCount int, netCfg NetworkBootstrapConfig, syncStatus SyncRuntimeStatus, listenAddr string) NodeStatus {
+	age := time.Since(syncStatus.UpdatedAt)
+	queueStalled := false
+	queueStallAge := time.Duration(0)
+	if syncStatus.SyncActivity.QueueRefs > 0 {
+		switch {
+		case syncStatus.SyncActivity.LastEventAt != nil:
+			queueStallAge = time.Since(*syncStatus.SyncActivity.LastEventAt)
+		case !syncStatus.StartedAt.IsZero():
+			queueStallAge = time.Since(syncStatus.StartedAt)
+		default:
+			queueStallAge = age
+		}
+		queueStalled = queueStallAge > 2*time.Minute
+	}
+	summary := "degraded"
+	summaryTone := "warn"
+	summaryDetail := fmt.Sprintf("Sync daemon heartbeat updated %s ago.", age.Truncate(time.Second))
+	switch {
+	case age > 2*time.Minute:
+		summary = "stale"
+		summaryTone = "warn"
+		summaryDetail = fmt.Sprintf("Sync daemon status is stale. Last heartbeat was %s ago.", age.Truncate(time.Second))
+	case queueStalled:
+		summary = "backfill stalled"
+		summaryTone = "warn"
+		summaryDetail = fmt.Sprintf("Sync worker is alive, but queue refs have not moved for %s.", queueStallAge.Truncate(time.Second))
+	case syncStatus.LibP2P.ReachableBootstrap > 0 && syncStatus.BitTorrentDHT.GoodNodes > 0:
+		summary = "online"
+		summaryTone = "good"
+		summaryDetail = "libp2p bootstrap peers are reachable and BitTorrent DHT has live nodes."
+	case syncStatus.LibP2P.ConnectedBootstrap > 0 || syncStatus.BitTorrentDHT.Nodes > 0:
+		summary = "partial"
+		summaryTone = "warn"
+		summaryDetail = "At least one transport is online, but the full sync path is not yet healthy."
+	}
+
+	libp2pValue := fmt.Sprintf("%d/%d reachable · %d peers", syncStatus.LibP2P.ReachableBootstrap, syncStatus.LibP2P.ConfiguredBootstrap, syncStatus.LibP2P.ConnectedPeers)
+	libp2pTone := "warn"
+	libp2pDetail := "Live libp2p bootstrap reachability from the sync daemon."
+	if syncStatus.LibP2P.LastError != "" {
+		libp2pDetail = syncStatus.LibP2P.LastError
+	}
+	if syncStatus.LibP2P.ReachableBootstrap > 0 {
+		libp2pTone = "good"
+	}
+
+	rendezvousValue := fmt.Sprintf("%d configured", syncStatus.LibP2P.ConfiguredRendezvous)
+	rendezvousTone := "warn"
+	rendezvousDetail := "Rendezvous namespaces declared for the live control plane."
+	if syncStatus.LibP2P.ConfiguredRendezvous > 0 {
+		rendezvousTone = "good"
+	}
+
+	dhtValue := fmt.Sprintf("%d good / %d total nodes", syncStatus.BitTorrentDHT.GoodNodes, syncStatus.BitTorrentDHT.Nodes)
+	dhtTone := "warn"
+	dhtDetail := fmt.Sprintf("%d DHT servers, %d outstanding transactions.", syncStatus.BitTorrentDHT.Servers, syncStatus.BitTorrentDHT.OutstandingTransactions)
+	if syncStatus.BitTorrentDHT.LastError != "" {
+		dhtDetail = syncStatus.BitTorrentDHT.LastError
+	}
+	if syncStatus.BitTorrentDHT.GoodNodes > 0 {
+		dhtTone = "good"
+	}
+
+	pubsubValue := "disabled"
+	pubsubTone := "warn"
+	pubsubDetail := "Pubsub announcement relay is not active."
+	if syncStatus.PubSub.Enabled {
+		pubsubValue = fmt.Sprintf("%d topics · %d rx · %d enqueued", len(syncStatus.PubSub.JoinedTopics), syncStatus.PubSub.Received, syncStatus.PubSub.Enqueued)
+		pubsubDetail = fmt.Sprintf("%d local announcements published across %d discovery namespaces.", syncStatus.PubSub.Published, len(syncStatus.PubSub.DiscoveryNamespaces))
+		if syncStatus.PubSub.LastError != "" {
+			pubsubDetail = syncStatus.PubSub.LastError
+		}
+		pubsubTone = "good"
+	}
+
+	mdnsValue := "enabled"
+	mdnsTone := "warn"
+	mdnsDetail := "mDNS is listening for AiP2P peers on the local network."
+	if !syncStatus.LibP2P.MDNS.Enabled {
+		mdnsValue = "disabled"
+		mdnsDetail = "Local network peer discovery is not active."
+	} else {
+		mdnsValue = fmt.Sprintf("%d discovered · %d connected", syncStatus.LibP2P.MDNS.DiscoveredPeers, syncStatus.LibP2P.MDNS.ConnectedPeers)
+		if syncStatus.LibP2P.MDNS.LastError != "" {
+			mdnsDetail = syncStatus.LibP2P.MDNS.LastError
+		} else if syncStatus.LibP2P.MDNS.DiscoveredPeers > 0 {
+			mdnsTone = "good"
+			mdnsDetail = "Local network peers have been discovered through mDNS."
+		}
+	}
+
+	discoveryValue := "sync daemon active"
+	discoveryTone := "good"
+	discoveryDetail := fmt.Sprintf("%s loaded; sync status heartbeat is current.", netCfg.FileName())
+	if !netCfg.Exists {
+		discoveryValue = "status only"
+		discoveryDetail = "Sync daemon is running, but aip2p_news_net.inf is not present on this node."
+	}
+
+	syncDaemonValue := fmt.Sprintf("pid %d · %s", syncStatus.PID, syncStatus.Mode)
+	syncDaemonDetail := fmt.Sprintf("Queue refs %d, imported %d, skipped %d, failed %d.", syncStatus.SyncActivity.QueueRefs, syncStatus.SyncActivity.Imported, syncStatus.SyncActivity.Skipped, syncStatus.SyncActivity.Failed)
+	if syncStatus.SyncActivity.LastStatus != "" {
+		syncDaemonDetail = fmt.Sprintf("%s Last result: %s.", syncDaemonDetail, syncStatus.SyncActivity.LastStatus)
+	}
+	if queueStalled {
+		syncDaemonDetail = fmt.Sprintf("%s Queue activity has been idle for %s.", syncDaemonDetail, queueStallAge.Truncate(time.Second))
+	}
+	networkIDValue := syncStatus.NetworkID
+	networkIDTone := "warn"
+	networkIDDetail := "No network_id is active; this node may still be using older shared discovery namespaces."
+	if networkIDValue != "" {
+		networkIDTone = "good"
+		networkIDDetail = "Active 256-bit namespace used for pubsub topics, rendezvous discovery, and announcement filtering."
+	} else if netCfg.NetworkID != "" {
+		networkIDValue = netCfg.NetworkID
+	}
+
+	return NodeStatus{
+		Summary:       summary,
+		SummaryTone:   summaryTone,
+		SummaryDetail: summaryDetail,
+		Entries: []NodeStatusEntry{
+			{Label: "Overall", Value: summary, Detail: summaryDetail, Tone: summaryTone},
+			{Label: "HTTP UI", Value: "online " + listenAddr, Detail: "The local dashboard is reachable on this node.", Tone: "good"},
+			{Label: "Bundle store", Value: fmt.Sprintf("%s · %d bundles", storeState, len(index.Bundles)), Detail: "AiP2P News is reading from the local immutable bundle store.", Tone: storeTone},
+			{Label: "Torrent refs", Value: fmt.Sprintf("%d available", torrentCount), Detail: "Immutable torrent references currently mirrored on this node.", Tone: "good"},
+			{Label: "Sync daemon", Value: syncDaemonValue, Detail: syncDaemonDetail, Tone: "good"},
+			{Label: "libp2p pubsub", Value: pubsubValue, Detail: pubsubDetail, Tone: pubsubTone},
+			{Label: "Discovery file", Value: discoveryValue, Detail: discoveryDetail, Tone: discoveryTone},
+			{Label: "Network ID", Value: networkIDValue, Detail: networkIDDetail, Tone: networkIDTone},
+			{Label: "LAN mDNS", Value: mdnsValue, Detail: mdnsDetail, Tone: mdnsTone},
+			{Label: "libp2p bootstrap", Value: libp2pValue, Detail: libp2pDetail, Tone: libp2pTone},
+			{Label: "libp2p rendezvous", Value: rendezvousValue, Detail: rendezvousDetail, Tone: rendezvousTone},
+			{Label: "BitTorrent DHT", Value: dhtValue, Detail: dhtDetail, Tone: dhtTone},
+		},
+		Dashboard: []NodeStatusCard{
+			{Label: "Node mode", Value: summary, Detail: summaryDetail, Tone: summaryTone},
+			{Label: "libp2p pubsub", Value: pubsubValue, Detail: pubsubDetail, Tone: pubsubTone},
+			{Label: "LAN mDNS", Value: mdnsValue, Detail: mdnsDetail, Tone: mdnsTone},
+			{Label: "libp2p bootstrap", Value: libp2pValue, Detail: libp2pDetail, Tone: libp2pTone},
+			{Label: "BitTorrent DHT", Value: dhtValue, Detail: dhtDetail, Tone: dhtTone},
+			{Label: "Sync daemon", Value: syncDaemonValue, Detail: syncDaemonDetail, Tone: "good"},
+			{Label: "Network ID", Value: networkIDValue, Detail: networkIDDetail, Tone: networkIDTone},
+		},
+	}
+}
+
+func (a *App) networkBootstrap() (NetworkBootstrapConfig, error) {
+	if a.loadNet == nil {
+		return NetworkBootstrapConfig{}, nil
+	}
+	return a.loadNet(a.netPath)
+}
+
+func (a *App) syncRuntimeStatus() (SyncRuntimeStatus, error) {
+	if a.loadSync == nil {
+		return SyncRuntimeStatus{}, nil
+	}
+	return a.loadSync(a.storeRoot)
+}
+
+func (a *App) syncSupervisorStatus() (SyncSupervisorState, error) {
+	if a.loadSuper == nil {
+		return SyncSupervisorState{}, nil
+	}
+	paths, err := DefaultRuntimePaths()
+	if err != nil {
+		return SyncSupervisorState{}, err
+	}
+	return a.loadSuper(paths.SupervisorStatePath)
+}
+
+func (a *App) lanBTStatus(ctx context.Context, cfg NetworkBootstrapConfig) ([]LANBTAnchorStatus, bool, string) {
+	if len(cfg.LANTorrentPeers) == 0 || a.fetchLANBT == nil {
+		return nil, false, "not configured"
+	}
+	anchors := make([]LANBTAnchorStatus, 0, len(cfg.LANTorrentPeers))
+	hasMatch := false
+	for _, peer := range cfg.LANTorrentPeers {
+		anchor := LANBTAnchorStatus{Peer: strings.TrimSpace(peer)}
+		payload, err := a.fetchLANBT(ctx, peer, cfg.NetworkID)
+		if err != nil {
+			anchor.Error = err.Error()
+			anchors = append(anchors, anchor)
+			continue
+		}
+		anchor.Nodes = append(anchor.Nodes, payload.BitTorrentNodes...)
+		for _, node := range anchor.Nodes {
+			if strings.HasPrefix(node, strings.TrimSpace(peer)+":") {
+				anchor.MatchedNode = node
+				hasMatch = true
+				break
+			}
+		}
+		anchors = append(anchors, anchor)
+	}
+	overall := "not reached"
+	switch {
+	case hasMatch:
+		overall = "live node resolved"
+	case len(anchors) > 0:
+		overall = "anchor configured"
+	}
+	return anchors, hasMatch, overall
+}
+
+func (a *App) httpListenAddr() string {
+	if strings.TrimSpace(a.listenAddr) == "" {
+		return "0.0.0.0:51818"
+	}
+	return a.listenAddr
+}
+
+func buildPageNav(activePath string) []NavItem {
+	return []NavItem{
+		{Name: "Feed", URL: "/", Active: activePath == "/"},
+		{Name: "Sources", URL: "/sources", Active: strings.HasPrefix(activePath, "/sources")},
+		{Name: "Topics", URL: "/topics", Active: strings.HasPrefix(activePath, "/topics")},
+		{Name: "Network", URL: "/network", Active: strings.HasPrefix(activePath, "/network")},
+		{Name: "Archive", URL: "/archive", Active: strings.HasPrefix(activePath, "/archive")},
+		{Name: "API", URL: "/api/feed", Active: strings.HasPrefix(activePath, "/api")},
+	}
+}
+
+func buildFeedFacets(stats []FacetStat, opts FeedOptions, basePath, key string, omit ...string) []FeedFacet {
+	items := make([]FeedFacet, 0, len(stats)+1)
+	items = append(items, FeedFacet{
+		Name:   "All",
+		Count:  0,
+		URL:    pageURL(basePath, opts, key, "", omit...),
+		Active: activeFeedValue(opts, key) == "",
+	})
+	limit := len(stats)
+	if limit > 8 {
+		limit = 8
+	}
+	for _, stat := range stats[:limit] {
+		items = append(items, FeedFacet{
+			Name:   stat.Name,
+			Count:  stat.Count,
+			URL:    pageURL(basePath, opts, key, stat.Name, omit...),
+			Active: strings.EqualFold(activeFeedValue(opts, key), stat.Name),
+		})
+	}
+	return items
+}
+
+func buildFacetLinks(stats []FacetStat, opts FeedOptions, basePath, key string, omit ...string) []FeedFacet {
+	limit := len(stats)
+	if limit > 8 {
+		limit = 8
+	}
+	items := make([]FeedFacet, 0, limit)
+	for _, stat := range stats[:limit] {
+		items = append(items, FeedFacet{
+			Name:   stat.Name,
+			Count:  stat.Count,
+			URL:    pageURL(basePath, opts, key, stat.Name, omit...),
+			Active: strings.EqualFold(activeFeedValue(opts, key), stat.Name),
+		})
+	}
+	return items
+}
+
+func buildSortOptions(opts FeedOptions, basePath string, omit ...string) []SortOption {
+	order := []struct {
+		Name  string
+		Value string
+	}{
+		{Name: "Newest", Value: "new"},
+		{Name: "Discussed", Value: "discussed"},
+		{Name: "Vote Score", Value: "score"},
+		{Name: "Truth", Value: "truth"},
+		{Name: "Source Quality", Value: "source"},
+	}
+	items := make([]SortOption, 0, len(order))
+	active := opts.Sort
+	if active == "" {
+		active = "new"
+	}
+	for _, item := range order {
+		items = append(items, SortOption{
+			Name:   item.Name,
+			Value:  item.Value,
+			URL:    pageURL(basePath, opts, "sort", item.Value, omit...),
+			Active: item.Value == active,
+		})
+	}
+	return items
+}
+
+func buildWindowOptions(opts FeedOptions, basePath string, omit ...string) []TimeWindowOption {
+	order := []struct {
+		Name  string
+		Value string
+	}{
+		{Name: "All time", Value: ""},
+		{Name: "24h", Value: "24h"},
+		{Name: "7d", Value: "7d"},
+		{Name: "30d", Value: "30d"},
+	}
+	active := canonicalWindow(opts.Window)
+	items := make([]TimeWindowOption, 0, len(order))
+	for _, item := range order {
+		items = append(items, TimeWindowOption{
+			Name:   item.Name,
+			Value:  item.Value,
+			URL:    pageURL(basePath, opts, "window", item.Value, omit...),
+			Active: canonicalWindow(item.Value) == active,
+		})
+		if item.Value == "" && active == "" {
+			items[len(items)-1].Active = true
+		}
+	}
+	return items
+}
+
+func pageURL(basePath string, opts FeedOptions, key, value string, omit ...string) string {
+	next := withOption(opts, key, value)
+	encoded := encodeOptions(next, omit...)
+	if encoded == "" {
+		return basePath
+	}
+	return basePath + "?" + encoded
+}
+
+func withOption(opts FeedOptions, key, value string) FeedOptions {
+	next := opts
+	switch key {
+	case "channel":
+		next.Channel = value
+	case "topic":
+		next.Topic = value
+	case "source":
+		next.Source = value
+	case "sort":
+		next.Sort = value
+	case "q":
+		next.Query = value
+	case "window":
+		next.Window = canonicalWindow(value)
+	}
+	return next
+}
+
+func encodeOptions(opts FeedOptions, omit ...string) string {
+	query := url.Values{}
+	ignored := make(map[string]struct{}, len(omit))
+	for _, key := range omit {
+		ignored[key] = struct{}{}
+	}
+	set := func(key, value string) {
+		if value == "" {
+			return
+		}
+		if _, skip := ignored[key]; skip {
+			return
+		}
+		query.Set(key, value)
+	}
+	set("channel", opts.Channel)
+	set("topic", opts.Topic)
+	set("source", opts.Source)
+	if opts.Sort != "" && opts.Sort != "new" {
+		set("sort", opts.Sort)
+	}
+	set("q", opts.Query)
+	if window := canonicalWindow(opts.Window); window != "" {
+		set("window", window)
+	}
+	return query.Encode()
+}
+
+func activeFeedValue(opts FeedOptions, key string) string {
+	switch key {
+	case "channel":
+		return opts.Channel
+	case "topic":
+		return opts.Topic
+	case "source":
+		return opts.Source
+	case "window":
+		return canonicalWindow(opts.Window)
+	default:
+		return ""
+	}
+}
+
+func buildActiveFilters(opts FeedOptions, basePath string, omit ...string) []ActiveFilter {
+	filters := make([]ActiveFilter, 0, 5)
+	if opts.Query != "" {
+		filters = append(filters, ActiveFilter{
+			Label: "Search: " + opts.Query,
+			URL:   pageURL(basePath, opts, "q", "", omit...),
+		})
+	}
+	if opts.Window != "" {
+		filters = append(filters, ActiveFilter{
+			Label: "Window: " + strings.ToUpper(opts.Window),
+			URL:   pageURL(basePath, opts, "window", "", omit...),
+		})
+	}
+	if opts.Channel != "" {
+		filters = append(filters, ActiveFilter{
+			Label: "Channel: " + opts.Channel,
+			URL:   pageURL(basePath, opts, "channel", "", omit...),
+		})
+	}
+	if opts.Topic != "" && !contains(omit, "topic") {
+		filters = append(filters, ActiveFilter{
+			Label: "Topic: " + opts.Topic,
+			URL:   pageURL(basePath, opts, "topic", "", omit...),
+		})
+	}
+	if opts.Source != "" && !contains(omit, "source") {
+		filters = append(filters, ActiveFilter{
+			Label: "Source: " + opts.Source,
+			URL:   pageURL(basePath, opts, "source", "", omit...),
+		})
+	}
+	return filters
+}
+
+func buildSummaryStats(posts []Post) []SummaryStat {
+	return []SummaryStat{
+		{Label: "Visible stories", Value: strconv.Itoa(len(posts))},
+		{Label: "Replies", Value: strconv.Itoa(CountReplies(posts))},
+		{Label: "Reactions", Value: strconv.Itoa(CountReactions(posts))},
+		{Label: "Avg truth", Value: formatAverageTruth(posts)},
+	}
+}
+
+func buildDirectorySummaryStats(stats []FacetStat, posts []Post) []SummaryStat {
+	return []SummaryStat{
+		{Label: "Tracked groups", Value: strconv.Itoa(len(stats))},
+		{Label: "Stories", Value: strconv.Itoa(len(posts))},
+		{Label: "Replies", Value: strconv.Itoa(CountReplies(posts))},
+		{Label: "Avg truth", Value: formatAverageTruth(posts)},
+	}
+}
+
+func formatAverageTruth(posts []Post) string {
+	var sum float64
+	var count int
+	for _, post := range posts {
+		if post.TruthScoreAverage == nil {
+			continue
+		}
+		sum += *post.TruthScoreAverage
+		count++
+	}
+	if count == 0 {
+		return "-"
+	}
+	return strings.TrimRight(strings.TrimRight(strconv.FormatFloat(sum/float64(count), 'f', 2, 64), "0"), ".")
+}
+
+func buildSourceDirectory(index Index) []DirectoryItem {
+	items := make([]DirectoryItem, 0, len(index.SourceStats))
+	for _, stat := range index.SourceStats {
+		posts := index.FilterPosts(FeedOptions{Source: stat.Name, Now: time.Now()})
+		items = append(items, DirectoryItem{
+			Name:          stat.Name,
+			URL:           sourcePath(stat.Name),
+			ExternalURL:   sourceURLFromPosts(posts),
+			StoryCount:    len(posts),
+			ReplyCount:    CountReplies(posts),
+			ReactionCount: CountReactions(posts),
+			AvgTruth:      formatAverageTruth(posts),
+		})
+	}
+	return items
+}
+
+func buildTopicDirectory(index Index) []DirectoryItem {
+	items := make([]DirectoryItem, 0, len(index.TopicStats))
+	for _, stat := range index.TopicStats {
+		posts := index.FilterPosts(FeedOptions{Topic: stat.Name, Now: time.Now()})
+		items = append(items, DirectoryItem{
+			Name:          stat.Name,
+			URL:           topicPath(stat.Name),
+			StoryCount:    len(posts),
+			ReplyCount:    CountReplies(posts),
+			ReactionCount: CountReactions(posts),
+			AvgTruth:      formatAverageTruth(posts),
+		})
+	}
+	return items
+}
+
+func channelStatsForPosts(posts []Post) []FacetStat {
+	counts := make(map[string]int)
+	for _, post := range posts {
+		if post.ChannelGroup == "" {
+			continue
+		}
+		counts[post.ChannelGroup]++
+	}
+	return facetStats(counts)
+}
+
+func topicStatsForPosts(posts []Post) []FacetStat {
+	counts := make(map[string]int)
+	for _, post := range posts {
+		for _, topic := range post.Topics {
+			counts[topic]++
+		}
+	}
+	return facetStats(counts)
+}
+
+func sourceStatsForPosts(posts []Post) []FacetStat {
+	counts := make(map[string]int)
+	for _, post := range posts {
+		if post.SourceName == "" {
+			continue
+		}
+		counts[post.SourceName]++
+	}
+	return facetStats(counts)
+}
+
+func sourceURLFromPosts(posts []Post) string {
+	for _, post := range posts {
+		if post.SourceURL != "" {
+			return post.SourceURL
+		}
+	}
+	return ""
+}
+
+func hasSource(index Index, name string) bool {
+	for _, stat := range index.SourceStats {
+		if strings.EqualFold(stat.Name, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasTopic(index Index, name string) bool {
+	for _, stat := range index.TopicStats {
+		if strings.EqualFold(stat.Name, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func pathValue(prefix, path string) string {
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+	value := strings.TrimPrefix(path, prefix)
+	if value == "" || strings.Contains(value, "/") {
+		return ""
+	}
+	decoded, err := url.PathUnescape(value)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(decoded)
+}
+
+func sourcePath(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	return "/sources/" + url.PathEscape(name)
+}
+
+func topicPath(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	return "/topics/" + url.PathEscape(name)
+}
+
+func contains(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
+func buildArchiveDays(index Index) []ArchiveDay {
+	dayMap := make(map[string]*ArchiveDay)
+	for _, bundle := range index.Bundles {
+		day := bundle.CreatedAt.UTC().Format("2006-01-02")
+		item := dayMap[day]
+		if item == nil {
+			item = &ArchiveDay{
+				Date: day,
+				URL:  "/archive/" + day,
+			}
+			dayMap[day] = item
+		}
+		switch bundle.Message.Kind {
+		case "post":
+			item.StoryCount++
+		case "reply":
+			item.ReplyCount++
+		case "reaction":
+			item.ReactionCount++
+		}
+	}
+	out := make([]ArchiveDay, 0, len(dayMap))
+	for _, item := range dayMap {
+		out = append(out, *item)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Date > out[j].Date
+	})
+	return out
+}
+
+func markArchiveDayActive(days []ArchiveDay, active string) []ArchiveDay {
+	out := make([]ArchiveDay, 0, len(days))
+	for _, day := range days {
+		day.Active = day.Date == active
+		out = append(out, day)
+	}
+	return out
+}
+
+func hasArchiveDay(days []ArchiveDay, target string) bool {
+	for _, day := range days {
+		if day.Date == target {
+			return true
+		}
+	}
+	return false
+}
+
+func buildArchiveSummaryStats(days []ArchiveDay, bundles int) []SummaryStat {
+	return []SummaryStat{
+		{Label: "Archive days", Value: strconv.Itoa(len(days))},
+		{Label: "Mirrored bundles", Value: strconv.Itoa(bundles)},
+	}
+}
+
+func buildArchiveDayStats(entries []ArchiveEntry) []SummaryStat {
+	stories := 0
+	replies := 0
+	reactions := 0
+	for _, entry := range entries {
+		switch entry.Kind {
+		case "post":
+			stories++
+		case "reply":
+			replies++
+		case "reaction":
+			reactions++
+		}
+	}
+	return []SummaryStat{
+		{Label: "Entries", Value: strconv.Itoa(len(entries))},
+		{Label: "Stories", Value: strconv.Itoa(stories)},
+		{Label: "Replies", Value: strconv.Itoa(replies)},
+		{Label: "Reactions", Value: strconv.Itoa(reactions)},
+	}
+}
+
+func buildArchiveEntries(index Index, day string) []ArchiveEntry {
+	entries := make([]ArchiveEntry, 0)
+	for _, bundle := range index.Bundles {
+		if bundle.ArchiveMD == "" || bundle.CreatedAt.UTC().Format("2006-01-02") != day {
+			continue
+		}
+		entries = append(entries, archiveEntry(bundle))
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if !entries[i].CreatedAt.Equal(entries[j].CreatedAt) {
+			return entries[i].CreatedAt.After(entries[j].CreatedAt)
+		}
+		return entries[i].InfoHash < entries[j].InfoHash
+	})
+	return entries
+}
+
+func findArchiveEntry(index Index, infoHash string) (ArchiveEntry, bool) {
+	infoHash = strings.ToLower(infoHash)
+	for _, bundle := range index.Bundles {
+		if strings.ToLower(bundle.InfoHash) == infoHash && bundle.ArchiveMD != "" {
+			return archiveEntry(bundle), true
+		}
+	}
+	return ArchiveEntry{}, false
+}
+
+func archiveEntry(bundle Bundle) ArchiveEntry {
+	title := strings.TrimSpace(bundle.Message.Title)
+	if title == "" {
+		title = strings.ToUpper(bundle.Message.Kind) + " " + bundle.InfoHash
+	}
+	day := bundle.CreatedAt.UTC().Format("2006-01-02")
+	return ArchiveEntry{
+		InfoHash:   bundle.InfoHash,
+		Kind:       bundle.Message.Kind,
+		Title:      title,
+		Author:     bundle.Message.Author,
+		CreatedAt:  bundle.CreatedAt,
+		ArchiveMD:  bundle.ArchiveMD,
+		Day:        day,
+		ThreadURL:  bundleThreadURL(bundle),
+		ViewerURL:  "/archive/messages/" + bundle.InfoHash,
+		RawURL:     "/archive/raw/" + bundle.InfoHash,
+		Channel:    bundle.Message.Channel,
+		SourceName: nestedString(bundle.Message.Extensions, "source", "name"),
+	}
+}
+
+func bundleThreadURL(bundle Bundle) string {
+	switch bundle.Message.Kind {
+	case "post":
+		return "/posts/" + bundle.InfoHash
+	case "reply":
+		if bundle.Message.ReplyTo != nil && bundle.Message.ReplyTo.InfoHash != "" {
+			return "/posts/" + bundle.Message.ReplyTo.InfoHash
+		}
+	case "reaction":
+		if infoHash := nestedString(bundle.Message.Extensions, "subject", "infohash"); infoHash != "" {
+			return "/posts/" + infoHash
+		}
+	}
+	return ""
+}
+
+func apiOptions(opts FeedOptions) map[string]string {
+	return map[string]string{
+		"channel": opts.Channel,
+		"topic":   opts.Topic,
+		"source":  opts.Source,
+		"sort":    opts.Sort,
+		"q":       opts.Query,
+		"window":  canonicalWindow(opts.Window),
+	}
+}
+
+func apiPosts(posts []Post) []map[string]any {
+	out := make([]map[string]any, 0, len(posts))
+	for _, post := range posts {
+		out = append(out, apiPost(post, false))
+	}
+	return out
+}
+
+func apiPost(post Post, withBody bool) map[string]any {
+	payload := map[string]any{
+		"infohash":         post.InfoHash,
+		"magnet":           post.Magnet,
+		"archive_md":       post.ArchiveMD,
+		"title":            post.Message.Title,
+		"author":           post.Message.Author,
+		"created_at":       post.CreatedAt.Format(time.RFC3339),
+		"channel":          post.Message.Channel,
+		"channel_group":    post.ChannelGroup,
+		"source_name":      post.SourceName,
+		"source_url":       post.SourceURL,
+		"topics":           post.Topics,
+		"post_type":        post.PostType,
+		"summary":          post.Summary,
+		"reply_count":      post.ReplyCount,
+		"reaction_count":   post.ReactionCount,
+		"vote_score":       post.VoteScore,
+		"truth_score":      scoreValue(post.TruthScoreAverage),
+		"source_quality":   scoreValue(post.SourceScoreAverage),
+		"thread_path":      "/posts/" + post.InfoHash,
+		"source_path":      sourcePath(post.SourceName),
+		"latest_reaction":  post.LatestReactionAuthor,
+		"event_time":       timeValue(post.EventTime),
+		"topic_paths":      topicPaths(post.Topics),
+		"message_tags":     post.Message.Tags,
+		"message_protocol": post.Message.Protocol,
+	}
+	if withBody {
+		payload["body"] = post.Body
+	}
+	return payload
+}
+
+func apiReplies(replies []Reply) []map[string]any {
+	out := make([]map[string]any, 0, len(replies))
+	for _, reply := range replies {
+		out = append(out, map[string]any{
+			"infohash":    reply.InfoHash,
+			"magnet":      reply.Magnet,
+			"archive_md":  reply.ArchiveMD,
+			"author":      reply.Message.Author,
+			"created_at":  reply.CreatedAt.Format(time.RFC3339),
+			"parent_hash": reply.ParentInfoHash,
+			"body":        reply.Body,
+		})
+	}
+	return out
+}
+
+func apiReactions(reactions []Reaction) []map[string]any {
+	out := make([]map[string]any, 0, len(reactions))
+	for _, reaction := range reactions {
+		out = append(out, map[string]any{
+			"infohash":      reaction.InfoHash,
+			"magnet":        reaction.Magnet,
+			"archive_md":    reaction.ArchiveMD,
+			"author":        reaction.Message.Author,
+			"created_at":    reaction.CreatedAt.Format(time.RFC3339),
+			"subject_hash":  reaction.SubjectInfoHash,
+			"reaction_type": reaction.ReactionType,
+			"vote_value":    reaction.VoteValue,
+			"score_value":   scoreValue(reaction.ScoreValue),
+			"explanation":   reaction.Explanation,
+		})
+	}
+	return out
+}
+
+func topicPaths(topics []string) map[string]string {
+	out := make(map[string]string, len(topics))
+	for _, topic := range topics {
+		out[topic] = topicPath(topic)
+	}
+	return out
+}
+
+func scoreValue(value *float64) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func timeValue(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return value.Format(time.RFC3339)
+}
+
+func requestBootstrapHost(r *http.Request) string {
+	host := strings.TrimSpace(r.Host)
+	if host == "" {
+		return ""
+	}
+	if value, _, err := net.SplitHostPort(host); err == nil {
+		return strings.Trim(value, "[]")
+	}
+	return strings.Trim(host, "[]")
+}
+
+func dialableLibP2PAddrs(status SyncRuntimeStatus, host string) []string {
+	peerID := strings.TrimSpace(status.LibP2P.PeerID)
+	if peerID == "" {
+		return nil
+	}
+	requestIP := net.ParseIP(strings.TrimSpace(host))
+	values := append([]string(nil), status.LibP2P.ListenAddrs...)
+	values = append(values, status.LibP2P.ConfiguredListen...)
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{})
+	for _, value := range values {
+		value = rewriteBootstrapAddrForHost(strings.TrimSpace(value), host)
+		if value == "" {
+			continue
+		}
+		if !bootstrapAddrMatchesRequestHost(value, requestIP) {
+			continue
+		}
+		if !strings.Contains(value, "/p2p/") {
+			value += "/p2p/" + peerID
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func dialableBitTorrentNodes(status SyncRuntimeStatus, host string) []string {
+	values := make([]string, 0, 1+len(status.BitTorrentDHT.ListenAddrs))
+	if value := rewriteBitTorrentListenForHost(strings.TrimSpace(status.BitTorrentDHT.ConfiguredListen), host); value != "" {
+		values = append(values, value)
+	}
+	for _, value := range status.BitTorrentDHT.ListenAddrs {
+		if value := rewriteBitTorrentListenForHost(strings.TrimSpace(value), host); value != "" {
+			values = append(values, value)
+		}
+	}
+	requestIP := net.ParseIP(strings.TrimSpace(host))
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{})
+	for _, value := range values {
+		if !torrentNodeMatchesRequestHost(value, requestIP) {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func bootstrapAddrMatchesRequestHost(value string, requestIP net.IP) bool {
+	if requestIP == nil {
+		return true
+	}
+	addrIP := multiaddrIP(value)
+	if addrIP == nil {
+		return true
+	}
+	return addrIP.Equal(requestIP)
+}
+
+func torrentNodeMatchesRequestHost(value string, requestIP net.IP) bool {
+	if requestIP == nil {
+		return true
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	host = strings.Trim(host, "[]")
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.Equal(requestIP)
+}
+
+func multiaddrIP(value string) net.IP {
+	parts := strings.Split(strings.TrimSpace(value), "/")
+	for i := 0; i+1 < len(parts); i++ {
+		switch parts[i] {
+		case "ip4", "ip6":
+			if ip := net.ParseIP(parts[i+1]); ip != nil {
+				return ip
+			}
+		}
+	}
+	return nil
+}
+
+func rewriteBootstrapAddrForHost(value, host string) string {
+	host = strings.TrimSpace(host)
+	if value == "" || host == "" {
+		return value
+	}
+	ip := net.ParseIP(host)
+	switch {
+	case ip != nil && ip.To4() != nil:
+		if strings.Contains(value, "/ip4/0.0.0.0/") {
+			value = strings.Replace(value, "/ip4/0.0.0.0/", "/ip4/"+host+"/", 1)
+		}
+		if strings.Contains(value, "/ip4/127.0.0.1/") {
+			value = strings.Replace(value, "/ip4/127.0.0.1/", "/ip4/"+host+"/", 1)
+		}
+	case ip != nil:
+		if strings.Contains(value, "/ip6/::/") {
+			value = strings.Replace(value, "/ip6/::/", "/ip6/"+host+"/", 1)
+		}
+		if strings.Contains(value, "/ip6/::1/") {
+			value = strings.Replace(value, "/ip6/::1/", "/ip6/"+host+"/", 1)
+		}
+	}
+	return value
+}
+
+func rewriteBitTorrentListenForHost(value, host string) string {
+	value = strings.TrimSpace(value)
+	host = strings.TrimSpace(host)
+	if value == "" {
+		return ""
+	}
+	listenHost, port, err := net.SplitHostPort(value)
+	if err != nil {
+		return ""
+	}
+	switch strings.TrimSpace(listenHost) {
+	case "", "0.0.0.0", "::", "[::]", "127.0.0.1", "::1", "[::1]":
+		if host == "" {
+			return ""
+		}
+		return net.JoinHostPort(host, port)
+	default:
+		return net.JoinHostPort(strings.Trim(listenHost, "[]"), port)
+	}
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	_ = encoder.Encode(payload)
+}
+
+func fetchNetworkBootstrapResponse(ctx context.Context, value, expectedNetworkID string) (NetworkBootstrapResponse, error) {
+	endpoint, err := latestLANBootstrapEndpoint(value)
+	if err != nil {
+		return NetworkBootstrapResponse{}, err
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return NetworkBootstrapResponse{}, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return NetworkBootstrapResponse{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return NetworkBootstrapResponse{}, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	var payload NetworkBootstrapResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return NetworkBootstrapResponse{}, err
+	}
+	if normalizeNetworkID(expectedNetworkID) != "" && strings.TrimSpace(payload.NetworkID) != "" && payload.NetworkID != expectedNetworkID {
+		return NetworkBootstrapResponse{}, fmt.Errorf("network id mismatch")
+	}
+	return payload, nil
+}
+
+func latestLANBootstrapEndpoint(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("empty lan bt peer")
+	}
+	if !strings.Contains(value, "://") {
+		value = "http://" + value
+	}
+	u, err := url.Parse(value)
+	if err != nil {
+		return "", err
+	}
+	host := strings.TrimSpace(u.Host)
+	if host == "" {
+		host = strings.TrimSpace(u.Path)
+		u.Path = ""
+	}
+	if host == "" {
+		return "", fmt.Errorf("missing host")
+	}
+	if _, _, err := net.SplitHostPort(host); err != nil {
+		host = net.JoinHostPort(strings.Trim(host, "[]"), "51818")
+	}
+	u.Scheme = "http"
+	u.Host = host
+	u.Path = "/api/network/bootstrap"
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String(), nil
+}
