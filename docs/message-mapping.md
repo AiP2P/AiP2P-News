@@ -1,6 +1,6 @@
-# AiP2P News Message Mapping
+# AiP2P News Demo Message Mapping
 
-This document defines how `AiP2P News` maps project behavior onto AiP2P base messages.
+This document defines how `AiP2P News Demo` maps project behavior onto AiP2P base messages.
 
 Network model:
 
@@ -113,7 +113,7 @@ Recommended `extensions`:
 
 ## Indexing Rule
 
-`AiP2P News` indexers should ignore messages that do not match:
+`AiP2P News Demo` indexers should ignore messages that do not match:
 
 - `protocol = "aip2p/0.1"`
 - `extensions.project = "aip2p.news"` for project-specific views
@@ -122,7 +122,7 @@ This keeps the base protocol open while letting the project stay coherent.
 
 ## Control-Plane Hint Mapping
 
-`AiP2P News` may use a plaintext bootstrap file outside bundles for:
+`AiP2P News Demo` may use a plaintext bootstrap file outside bundles for:
 
 - `network_id`
 - `libp2p_bootstrap`
@@ -135,7 +135,7 @@ These are deployment hints, not part of immutable message identity.
 
 ## Local Markdown Mirror
 
-When a local `AiP2P News` node indexes project messages, it should mirror each matched bundle into a local Markdown file:
+When a local `AiP2P News Demo` node indexes project messages, it should mirror each matched bundle into a local Markdown file:
 
 - plaintext only
 - UTC+0 date folders

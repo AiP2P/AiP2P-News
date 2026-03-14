@@ -39,6 +39,13 @@ type App struct {
 	fetchLANBT func(ctx context.Context, value, expectedNetworkID string) (NetworkBootstrapResponse, error)
 }
 
+func displayProjectName(project string) string {
+	if strings.EqualFold(strings.TrimSpace(project), "aip2p.news") {
+		return "AiP2P News Demo"
+	}
+	return strings.TrimSpace(project)
+}
+
 type NavItem struct {
 	Name   string
 	URL    string
@@ -393,7 +400,7 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	opts := readFeedOptions(r)
 	posts := index.FilterPosts(opts)
 	data := HomePageData{
-		Project:        a.project,
+		Project:        displayProjectName(a.project),
 		Version:        a.version,
 		Posts:          posts,
 		Now:            time.Now(),
@@ -432,7 +439,7 @@ func (a *App) handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := PostPageData{
-		Project:    a.project,
+		Project:    displayProjectName(a.project),
 		Version:    a.version,
 		PageNav:    buildPageNav("/"),
 		Post:       post,
@@ -473,7 +480,7 @@ func (a *App) handleNetwork(w http.ResponseWriter, r *http.Request) {
 	}
 	anchors, hasLANBTMatch, lanBTOverall := a.lanBTStatus(r.Context(), netCfg)
 	data := NetworkPageData{
-		Project:       a.project,
+		Project:       displayProjectName(a.project),
 		Version:       a.version,
 		ListenAddr:    a.httpListenAddr(),
 		PageNav:       buildPageNav("/network"),
@@ -502,7 +509,7 @@ func (a *App) handleSources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := DirectoryPageData{
-		Project:      a.project,
+		Project:      displayProjectName(a.project),
 		Version:      a.version,
 		Kind:         "Sources",
 		Path:         "/sources",
@@ -538,7 +545,7 @@ func (a *App) handleSource(w http.ResponseWriter, r *http.Request) {
 	}
 	fullSet := index.FilterPosts(FeedOptions{Source: name, Now: opts.Now})
 	data := CollectionPageData{
-		Project:        a.project,
+		Project:        displayProjectName(a.project),
 		Version:        a.version,
 		Kind:           "Source",
 		Name:           name,
@@ -575,7 +582,7 @@ func (a *App) handleTopics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := DirectoryPageData{
-		Project:      a.project,
+		Project:      displayProjectName(a.project),
 		Version:      a.version,
 		Kind:         "Topics",
 		Path:         "/topics",
@@ -611,7 +618,7 @@ func (a *App) handleTopic(w http.ResponseWriter, r *http.Request) {
 	}
 	fullSet := index.FilterPosts(FeedOptions{Topic: name, Now: opts.Now})
 	data := CollectionPageData{
-		Project:        a.project,
+		Project:        displayProjectName(a.project),
 		Version:        a.version,
 		Kind:           "Topic",
 		Name:           name,
@@ -653,7 +660,7 @@ func (a *App) handleArchiveIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	days := buildArchiveDays(index)
 	data := ArchiveIndexPageData{
-		Project:       a.project,
+		Project:       displayProjectName(a.project),
 		Version:       a.version,
 		PageNav:       buildPageNav("/archive"),
 		Now:           time.Now(),
@@ -701,7 +708,7 @@ func (a *App) handleArchiveDay(w http.ResponseWriter, r *http.Request) {
 	}
 	entries := buildArchiveEntries(index, day)
 	data := ArchiveDayPageData{
-		Project:       a.project,
+		Project:       displayProjectName(a.project),
 		Version:       a.version,
 		PageNav:       buildPageNav("/archive"),
 		Now:           time.Now(),
@@ -739,7 +746,7 @@ func (a *App) handleArchiveMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := ArchiveMessagePageData{
-		Project:    a.project,
+		Project:    displayProjectName(a.project),
 		Version:    a.version,
 		PageNav:    buildPageNav("/archive"),
 		Now:        time.Now(),
@@ -1145,7 +1152,7 @@ func (a *App) nodeStatus(index Index) NodeStatus {
 	case len(netCfg.LibP2PBootstrap) > 0 && len(netCfg.DHTRouters) > 0:
 		summary = "bootstrap ready"
 		summaryTone = "good"
-		summaryDetail = "libp2p and BitTorrent discovery profiles are loaded. aip2p.news is still UI/index mode until the sync daemon is running."
+		summaryDetail = "libp2p and BitTorrent discovery profiles are loaded. AiP2P News Demo is still in UI/index mode until the sync daemon is running."
 	case len(netCfg.LibP2PBootstrap) > 0 || len(netCfg.DHTRouters) > 0:
 		summary = "partially ready"
 		summaryTone = "warn"

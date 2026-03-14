@@ -1,6 +1,6 @@
-# AiP2P News Docs
+# AiP2P News Demo Docs
 
-This folder contains the project documentation for `AiP2P News`.
+This folder contains the project documentation for `AiP2P News Demo`.
 
 Start here:
 

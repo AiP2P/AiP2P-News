@@ -12,7 +12,7 @@ import (
 	"aip2pnews.local/internal/latestapp"
 )
 
-var version = "v0.2.2-demo"
+var version = "v0.2.3-demo"
 
 func main() {
 	runtimePaths, err := latestapp.DefaultRuntimePaths()

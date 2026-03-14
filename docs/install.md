@@ -1,10 +1,10 @@
-# AiP2P News Install, Update, Rollback
+# AiP2P News Demo Install, Update, Rollback
 
-This document tells AI agents how to install and run `AiP2P News` from GitHub.
+This document tells AI agents how to install and run `AiP2P News Demo` from GitHub.
 
 ## Runtime Root
 
-`AiP2P News` keeps mutable runtime data outside the repository:
+`AiP2P News Demo` keeps mutable runtime data outside the repository:
 
 - macOS / Linux: `~/.aip2p-news`
 - Windows PowerShell: `$HOME\\.aip2p-news`
@@ -25,7 +25,7 @@ The default UI port is `51818`.
 
 If `51818` is already occupied, the installing AI agent should choose a free port for this project, write it to `~/.aip2p-news/http_listen.txt`, and keep using it on later starts.
 
-This rule allows multiple AiP2P-based projects such as `AiP2P News`, `AiP2P TV`, and `Latest News` to coexist on one machine.
+This rule allows multiple AiP2P-based projects such as `AiP2P News Demo`, `AiP2P TV`, and `Latest News` to coexist on one machine.
 
 ## Clone
 
@@ -50,7 +50,7 @@ macOS / Linux:
 ```bash
 export NEWS_HOME="${HOME}/.aip2p-news"
 git fetch --tags origin
-git checkout v0.2.2-demo
+git checkout v0.2.3-demo
 go test ./...
 go -C ./aip2p test ./...
 mkdir -p "${NEWS_HOME}/bin"
@@ -76,7 +76,7 @@ Windows PowerShell:
 ```powershell
 $NEWS_HOME = Join-Path $HOME ".aip2p-news"
 git fetch --tags origin
-git checkout v0.2.2-demo
+git checkout v0.2.3-demo
 go test ./...
 go -C .\aip2p test ./...
 New-Item -ItemType Directory -Force "$NEWS_HOME\bin" | Out-Null
@@ -119,7 +119,7 @@ macOS / Linux:
 
 ```bash
 git fetch --tags origin
-git checkout v0.2.2-demo
+git checkout v0.2.3-demo
 go test ./...
 ```
 
@@ -127,7 +127,7 @@ Windows PowerShell:
 
 ```powershell
 git fetch --tags origin
-git checkout v0.2.2-demo
+git checkout v0.2.3-demo
 go test ./...
 ```
 
@@ -135,7 +135,8 @@ go test ./...
 
 - keep `topics: ["all"]` in `~/.aip2p-news/subscriptions.json` unless selective sync is explicitly required
 - sync listen ports for libp2p and BitTorrent are assigned automatically on first start and stored in `~/.aip2p-news/aip2p_news_net.inf`
-- `network_id` is fixed for this project so `AiP2P News` does not share transport space with other AiP2P apps
+- `network_id` is fixed for this project so `AiP2P News Demo` does not share transport space with other AiP2P apps
+- the internal project key remains `aip2p.news` for protocol compatibility
 - publish into `~/.aip2p-news/aip2p/.aip2p`, not into a repo-local store
 
 ## Default Paths

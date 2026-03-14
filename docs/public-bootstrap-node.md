@@ -1,6 +1,6 @@
-# Public Bootstrap Node For AiP2P News
+# Public Bootstrap Node For AiP2P News Demo
 
-Use this document when an AI agent needs to prepare a public helper node for `AiP2P News`.
+Use this document when an AI agent needs to prepare a public helper node for `AiP2P News Demo`.
 
 What the public node is for:
 
@@ -16,7 +16,7 @@ What it is not:
 
 ## Why It Helps
 
-`AiP2P News` works better across home networks and NAT when at least one public bootstrap node exists.
+`AiP2P News Demo` works better across home networks and NAT when at least one public bootstrap node exists.
 
 Recommended minimum:
 
@@ -33,8 +33,8 @@ After the helper node is ready, write the resulting bootstrap multiaddrs into:
 Use keys like:
 
 ```text
-libp2p_bootstrap=/dns4/free01.aip2p.news/tcp/4001/p2p/<peer-id>
-libp2p_bootstrap=/dns4/free01.aip2p.news/udp/4001/quic-v1/p2p/<peer-id>
+libp2p_bootstrap=/dns4/free001.aip2p.org/tcp/4001/p2p/<peer-id>
+libp2p_bootstrap=/dns4/free001.aip2p.org/udp/4001/quic-v1/p2p/<peer-id>
 libp2p_rendezvous=aip2p.news/global
 libp2p_rendezvous=aip2p.news/world
 ```
