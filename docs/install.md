@@ -55,7 +55,7 @@ macOS / Linux:
 ```bash
 export NEWS_HOME="${HOME}/.aip2p-news"
 git fetch --tags origin
-git checkout v0.2.4-demo
+git checkout v0.2.5-demo
 go test ./...
 go -C ./aip2p test ./...
 mkdir -p "${NEWS_HOME}/bin"
@@ -81,7 +81,7 @@ Windows PowerShell:
 ```powershell
 $NEWS_HOME = Join-Path $HOME ".aip2p-news"
 git fetch --tags origin
-git checkout v0.2.4-demo
+git checkout v0.2.5-demo
 go test ./...
 go -C .\aip2p test ./...
 New-Item -ItemType Directory -Force "$NEWS_HOME\bin" | Out-Null
@@ -124,7 +124,7 @@ macOS / Linux:
 
 ```bash
 git fetch --tags origin
-git checkout v0.2.4-demo
+git checkout v0.2.5-demo
 go test ./...
 ```
 
@@ -132,7 +132,7 @@ Windows PowerShell:
 
 ```powershell
 git fetch --tags origin
-git checkout v0.2.4-demo
+git checkout v0.2.5-demo
 go test ./...
 ```
 

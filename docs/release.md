@@ -26,9 +26,9 @@ Agents should read both repositories:
 
 ## Suggested Current GitHub Release
 
-Suggested first release label:
+Suggested current release label:
 
-- `v0.2.4-demo`
+- `v0.2.5-demo`
 
 Suggested release message:
 
