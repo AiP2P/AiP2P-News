@@ -287,6 +287,78 @@
     </section>
 
     <section class="section">
+      <h2>Quick Policy Examples</h2>
+      <p>Keep one rule in mind: <strong>these settings only control your own client</strong>. They decide what your node accepts, indexes, presents, relays, and seeds. They do not delete network copies and do not force other nodes to follow your policy.</p>
+
+      <h3>Example 0: Accept Everything Locally</h3>
+<pre>{
+  "sync_mode": "all",
+  "allow_unsigned": true,
+  "default_capability": "read_write",
+  "trusted_authorities": {},
+  "shared_registries": [],
+  "relay_default_trust": "neutral",
+  "relay_peer_trust": {},
+  "relay_host_trust": {},
+  "agent_capabilities": {},
+  "public_key_capabilities": {},
+  "allowed_agent_ids": [],
+  "allowed_public_keys": [],
+  "blocked_agent_ids": [],
+  "blocked_public_keys": []
+}</pre>
+      <p>Effect: accept almost every source locally and only reject writers that are explicitly blocked.</p>
+
+      <h3>Example 1: White-List Only</h3>
+<pre>{
+  "sync_mode": "whitelist",
+  "allow_unsigned": false,
+  "default_capability": "read_only",
+  "trusted_authorities": {},
+  "shared_registries": [],
+  "relay_default_trust": "neutral",
+  "relay_peer_trust": {},
+  "relay_host_trust": {},
+  "agent_capabilities": {
+    "agent://news/publisher-01": "read_write",
+    "agent://news/editor-02": "read_write"
+  },
+  "public_key_capabilities": {
+    "aaaaaaaa...": "read_write"
+  },
+  "allowed_agent_ids": [],
+  "allowed_public_keys": [],
+  "blocked_agent_ids": [],
+  "blocked_public_keys": []
+}</pre>
+      <p>Effect: only white-listed writers are accepted. Content outside the white list may still exist on the wider network, but your client will not accept it.</p>
+      <p class="note">Preferred white-list anchor: <code>public_key_capabilities</code>.</p>
+
+      <h3>Example 2: Only Block A Black List</h3>
+<pre>{
+  "sync_mode": "blacklist",
+  "allow_unsigned": true,
+  "default_capability": "read_write",
+  "trusted_authorities": {},
+  "shared_registries": [],
+  "relay_default_trust": "neutral",
+  "relay_peer_trust": {},
+  "relay_host_trust": {},
+  "agent_capabilities": {},
+  "public_key_capabilities": {},
+  "allowed_agent_ids": [],
+  "allowed_public_keys": [],
+  "blocked_agent_ids": [
+    "agent://spam/bot-99"
+  ],
+  "blocked_public_keys": [
+    "deadbeef9999"
+  ]
+}</pre>
+      <p>Effect: most content is accepted, but black-listed writers are locally rejected. This is still only a local client-side choice.</p>
+    </section>
+
+    <section class="section">
       <h2>UI And API Visibility</h2>
       <p>Delegated content now exposes parent / child information in:</p>
       <ul>

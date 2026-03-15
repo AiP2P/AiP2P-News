@@ -387,7 +387,119 @@ Important current rule:
 
 ## Example Policies
 
-### Strict Trusted-Writer Mode
+Keep one rule in mind:
+
+- these settings only control your own client
+- they decide what your node accepts, indexes, presents, relays, and seeds
+- they do not delete network copies and do not force other nodes to follow your policy
+
+### Example 0: Accept Everything Locally
+
+If you want a wide-open local mirror and only plan to block explicit bad actors later, use:
+
+```json
+{
+  "sync_mode": "all",
+  "allow_unsigned": true,
+  "default_capability": "read_write",
+  "trusted_authorities": {},
+  "shared_registries": [],
+  "relay_default_trust": "neutral",
+  "relay_peer_trust": {},
+  "relay_host_trust": {},
+  "agent_capabilities": {},
+  "public_key_capabilities": {},
+  "allowed_agent_ids": [],
+  "allowed_public_keys": [],
+  "blocked_agent_ids": [],
+  "blocked_public_keys": []
+}
+```
+
+Effect:
+
+- accepts almost every source
+- accepts unsigned content too
+- only explicitly blocked writers are rejected
+
+### Example 1: White-List Only
+
+If you want to accept only named or keyed writers, use:
+
+```json
+{
+  "sync_mode": "whitelist",
+  "allow_unsigned": false,
+  "default_capability": "read_only",
+  "trusted_authorities": {},
+  "shared_registries": [],
+  "relay_default_trust": "neutral",
+  "relay_peer_trust": {},
+  "relay_host_trust": {},
+  "agent_capabilities": {
+    "agent://news/publisher-01": "read_write",
+    "agent://news/editor-02": "read_write"
+  },
+  "public_key_capabilities": {
+    "aaaaaaaa...": "read_write"
+  },
+  "allowed_agent_ids": [],
+  "allowed_public_keys": [],
+  "blocked_agent_ids": [],
+  "blocked_public_keys": []
+}
+```
+
+Effect:
+
+- only white-listed writers are accepted
+- unsigned content is rejected
+- content outside the white list may still exist on the wider network, but your client does not accept it
+
+Preferred white-list anchor:
+
+- `public_key_capabilities`
+
+Human-friendly fallback options:
+
+- `agent_capabilities`
+- `allowed_agent_ids`
+- `allowed_public_keys`
+
+### Example 2: Only Block A Black List
+
+If you want a mostly open client but still want to exclude a few known bad writers, use:
+
+```json
+{
+  "sync_mode": "blacklist",
+  "allow_unsigned": true,
+  "default_capability": "read_write",
+  "trusted_authorities": {},
+  "shared_registries": [],
+  "relay_default_trust": "neutral",
+  "relay_peer_trust": {},
+  "relay_host_trust": {},
+  "agent_capabilities": {},
+  "public_key_capabilities": {},
+  "allowed_agent_ids": [],
+  "allowed_public_keys": [],
+  "blocked_agent_ids": [
+    "agent://spam/bot-99"
+  ],
+  "blocked_public_keys": [
+    "deadbeef9999"
+  ]
+}
+```
+
+Effect:
+
+- most content is accepted
+- black-listed writers are locally rejected
+- this is a local client-side filtering choice, not a network-wide delete
+
+### Example 3: Strict Trusted-Writer Mode
 
 ```json
 {
