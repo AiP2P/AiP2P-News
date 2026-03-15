@@ -1,0 +1,136 @@
+package latestapp
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestFilterPostsSupportsQueryAndSort(t *testing.T) {
+	t.Parallel()
+
+	truthA := 0.8
+	truthB := 0.5
+	index := Index{
+		Posts: []Post{
+			{
+				Bundle: Bundle{
+					InfoHash:  "a",
+					CreatedAt: time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC),
+					Message: Message{
+						Title:  "Oil rises in Europe",
+						Author: "agent://collector/a",
+					},
+					Body: "Energy markets moved higher.",
+				},
+				ChannelGroup:      "world",
+				SourceName:        "BBC News",
+				Topics:            []string{"energy", "world"},
+				TruthScoreAverage: &truthA,
+			},
+			{
+				Bundle: Bundle{
+					InfoHash:  "b",
+					CreatedAt: time.Date(2026, 3, 12, 9, 0, 0, 0, time.UTC),
+					Message: Message{
+						Title:  "Chip shares retreat",
+						Author: "agent://collector/b",
+					},
+					Body: "Technology stocks traded lower.",
+				},
+				ChannelGroup:      "markets",
+				SourceName:        "CNBC",
+				Topics:            []string{"technology"},
+				TruthScoreAverage: &truthB,
+			},
+		},
+	}
+
+	got := index.FilterPosts(FeedOptions{
+		Query: "oil",
+		Sort:  "truth",
+		Now:   time.Date(2026, 3, 12, 12, 0, 0, 0, time.UTC),
+	})
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	if got[0].InfoHash != "a" {
+		t.Fatalf("infohash = %s, want a", got[0].InfoHash)
+	}
+}
+
+func TestFilterPostsSupportsWindow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 12, 12, 0, 0, 0, time.UTC)
+	index := Index{
+		Posts: []Post{
+			{Bundle: Bundle{InfoHash: "fresh", CreatedAt: now.Add(-6 * time.Hour)}},
+			{Bundle: Bundle{InfoHash: "stale", CreatedAt: now.Add(-10 * 24 * time.Hour)}},
+		},
+	}
+
+	got := index.FilterPosts(FeedOptions{Window: "24h", Now: now})
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	if got[0].InfoHash != "fresh" {
+		t.Fatalf("infohash = %s, want fresh", got[0].InfoHash)
+	}
+}
+
+func TestRelatedPosts(t *testing.T) {
+	t.Parallel()
+
+	index := Index{
+		Posts: []Post{
+			{
+				Bundle:       Bundle{InfoHash: "base", CreatedAt: time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC)},
+				SourceName:   "BBC News",
+				ChannelGroup: "world",
+				Topics:       []string{"energy", "world"},
+			},
+			{
+				Bundle:       Bundle{InfoHash: "rel1", CreatedAt: time.Date(2026, 3, 12, 11, 0, 0, 0, time.UTC)},
+				SourceName:   "BBC News",
+				ChannelGroup: "world",
+				Topics:       []string{"energy"},
+			},
+			{
+				Bundle:       Bundle{InfoHash: "rel2", CreatedAt: time.Date(2026, 3, 12, 9, 0, 0, 0, time.UTC)},
+				SourceName:   "Another",
+				ChannelGroup: "world",
+				Topics:       []string{"world"},
+			},
+		},
+		PostByInfoHash: map[string]Post{},
+	}
+	for _, post := range index.Posts {
+		index.PostByInfoHash[post.InfoHash] = post
+	}
+
+	got := index.RelatedPosts("base", 4)
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2", len(got))
+	}
+	if got[0].InfoHash != "rel1" {
+		t.Fatalf("first = %s, want rel1", got[0].InfoHash)
+	}
+}
+
+func TestLoadIndexMissingStoreReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(t.TempDir(), "missing-store")
+	index, err := LoadIndex(root, "aip2p.news")
+	if err != nil {
+		t.Fatalf("load index: %v", err)
+	}
+	if len(index.Bundles) != 0 {
+		t.Fatalf("bundles len = %d, want 0", len(index.Bundles))
+	}
+	if _, err := os.Stat(root); !os.IsNotExist(err) && err != nil {
+		t.Fatalf("stat root: %v", err)
+	}
+}

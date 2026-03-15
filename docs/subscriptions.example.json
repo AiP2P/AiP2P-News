@@ -1,0 +1,8 @@
+{
+  "channels": [],
+  "topics": ["all"],
+  "tags": [],
+  "max_age_days": 99999999,
+  "max_bundle_mb": 10,
+  "max_items_per_day": 999999999999
+}

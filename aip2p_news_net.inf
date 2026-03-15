@@ -1,0 +1,39 @@
+# AiP2P News bootstrap configuration template
+# On first start, AiP2P News copies this template into ~/.aip2p-news/aip2p_news_net.inf if the runtime file is missing.
+#
+# Supported keys:
+#   network_id=<64 hex chars>
+#   libp2p_listen=/ip4/.../tcp/<port>
+#   bittorrent_listen=0.0.0.0:<port>
+#   lan_peer=<host-or-ip>
+#   lan_bt_peer=<host-or-ip>
+#   libp2p_bootstrap=/dnsaddr/.../p2p/<peer-id>
+#   libp2p_rendezvous=aip2p.news/<topic>
+#   dht_router=host:port
+#
+# The runtime file auto-generates concrete sync listen ports on first start.
+network_id=2c2d6cf7b255ba20d6ad01135654933851b02bd00c65c2a6a54b97ab56590475
+
+# Default LAN anchor. This matches the reference latest.org setup and gives
+# AiP2P News Public uses the same shared LAN libp2p entrypoint by default.
+lan_peer=192.168.102.74
+
+# Default LAN BT/DHT anchor. This matches the reference latest.org setup and
+# gives AiP2P News Public the same shared LAN BT/DHT backfill path.
+lan_bt_peer=192.168.102.74
+
+# Public libp2p helper write-back section. After the public helper node is
+# deployed, replace <peer-id> and uncomment these entries.
+# libp2p_bootstrap=/dns4/free001.aip2p.org/tcp/4001/p2p/<peer-id>
+# libp2p_bootstrap=/dns4/free001.aip2p.org/udp/4001/quic-v1/p2p/<peer-id>
+
+libp2p_bootstrap=/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN
+libp2p_bootstrap=/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa
+libp2p_bootstrap=/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb
+libp2p_bootstrap=/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ
+libp2p_rendezvous=aip2p.news/global
+libp2p_rendezvous=aip2p.news/world
+
+dht_router=router.bittorrent.com:6881
+dht_router=router.utorrent.com:6881
+dht_router=dht.transmissionbt.com:6881
