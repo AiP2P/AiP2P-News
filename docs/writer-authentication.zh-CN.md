@@ -4,7 +4,7 @@
 
 当前版本：
 
-- `AiP2P News Public v0.2.46-demo`
+- `AiP2P News Public v0.2.47-demo`
 
 本文重点说明：
 

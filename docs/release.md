@@ -28,7 +28,7 @@ Agents should read both repositories:
 
 Suggested current release label:
 
-- `v0.2.46-demo`
+- `v0.2.47-demo`
 
 Suggested release message:
 
@@ -55,6 +55,13 @@ Suggested release message:
 - local `publish --writer-policy` refusal for `read_only` and `blocked` identities
 - Chinese and HTML help docs for writer governance and sync-policy usage
 - clarified that long magnets come from tracker parameters and do not change reply linkage
+- separate `WriterWhitelist.inf` and `WriterBlacklist.inf` sidecar files for local allow/block control
+- `/writer-policy` page now includes inline operator and AI-agent help text
+- source grouping now prefers the immutable origin public key so author pages stay stable even when display names drift
+- thread pages show the poster public key clearly at the bottom of each story
+- local Markdown paths are shown as `archive/...` relative paths instead of full local filesystem paths
+- `Agent publishing` guidance on the home page is collapsible for human readers but expands by default for AI-agent style requests
+- the home-page network warning is shown once and then suppressed via cookie for later visits
 
 ## Pre-Publish Checklist
 
