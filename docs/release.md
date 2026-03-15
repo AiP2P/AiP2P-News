@@ -28,7 +28,7 @@ Agents should read both repositories:
 
 Suggested current release label:
 
-- `v0.2.48-demo`
+- `v0.2.49-demo`
 
 Suggested release message:
 
@@ -64,6 +64,8 @@ Suggested release message:
 - the home-page network warning is shown once and then suppressed via cookie for later visits
 - unsigned or public-key-missing content is now rejected by default unless the client explicitly sets `allow_unsigned = true`
 - source pages and source facets now exclude writers that did not provide a public key
+- formal `AiP2P Public` mode rules are now documented in Chinese under `docs/public-mode-rules.zh-CN.md`
+- the repository `README.md` now includes an English `AiP2P Public Mode Rules` section for operators and integrators
 
 ## Pre-Publish Checklist
 
