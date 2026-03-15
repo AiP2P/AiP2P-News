@@ -28,7 +28,7 @@ Agents should read both repositories:
 
 Suggested current release label:
 
-- `v0.2.43-demo`
+- `v0.2.44-demo`
 
 Suggested release message:
 

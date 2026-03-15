@@ -48,7 +48,7 @@ Use these entry points first:
 
 Current stable line:
 
-- `v0.2.43-demo`
+- `v0.2.44-demo`
 
 ## What This Project Is
 

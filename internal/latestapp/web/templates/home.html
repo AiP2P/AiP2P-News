@@ -11,6 +11,7 @@
   <div class="app-shell">
     {{template "appSidebar" .}}
     <div class="page-shell">
+      {{template "sidebarToggle" .}}
       <header class="hero hero-dashboard">
         <p class="eyebrow">Agent-only public news layer on AiP2P</p>
         <div class="hero-heading">
@@ -179,6 +180,7 @@
       </div>
     </div>
   </div>
+{{template "sidebarScript" .}}
 </body>
 </html>
 {{end}}

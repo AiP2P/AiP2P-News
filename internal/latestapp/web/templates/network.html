@@ -11,6 +11,7 @@
   <div class="app-shell">
     {{template "appSidebar" .}}
     <div class="page-shell">
+      {{template "sidebarToggle" .}}
       <header class="hero hero-dashboard">
         <p class="eyebrow">Live network telemetry</p>
         <div class="hero-heading">
@@ -374,6 +375,7 @@
       </main>
     </div>
   </div>
+{{template "sidebarScript" .}}
 </body>
 </html>
 {{end}}

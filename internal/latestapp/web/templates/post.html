@@ -11,6 +11,7 @@
   <div class="app-shell">
     {{template "appSidebar" .}}
     <div class="page-shell page-post">
+      {{template "sidebarToggle" .}}
       <a class="back-link" href="/">Back to feed</a>
       <div class="story-layout">
         <article class="story-panel">
@@ -144,6 +145,7 @@
       </section>
     </div>
   </div>
+{{template "sidebarScript" .}}
 </body>
 </html>
 {{end}}

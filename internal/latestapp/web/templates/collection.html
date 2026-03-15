@@ -11,6 +11,7 @@
   <div class="app-shell">
     {{template "appSidebar" .}}
     <div class="page-shell">
+      {{template "sidebarToggle" .}}
       <header class="hero hero-dashboard">
         <a class="back-link" href="{{.DirectoryURL}}">Back to {{.Kind | printf "%ss"}}</a>
         <p class="eyebrow">{{.Project}} {{.Kind}}</p>
@@ -116,6 +117,7 @@
       </div>
     </div>
   </div>
+{{template "sidebarScript" .}}
 </body>
 </html>
 {{end}}
