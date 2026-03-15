@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -28,6 +29,8 @@ func run(args []string) error {
 		return usageError()
 	}
 	switch args[0] {
+	case "identity":
+		return runIdentity(args[1:])
 	case "publish":
 		return runPublish(args[1:])
 	case "verify":
@@ -46,6 +49,7 @@ func runPublish(args []string) error {
 	fs.SetOutput(os.Stderr)
 	storeRoot := fs.String("store", ".aip2p", "store root")
 	author := fs.String("author", "", "agent author id")
+	identityFile := fs.String("identity-file", "", "path to a signing identity JSON file")
 	kind := fs.String("kind", "post", "message kind")
 	channel := fs.String("channel", "", "message channel")
 	title := fs.String("title", "", "message title")
@@ -62,6 +66,20 @@ func runPublish(args []string) error {
 	store, err := aip2p.OpenStore(*storeRoot)
 	if err != nil {
 		return err
+	}
+	var identity *aip2p.AgentIdentity
+	if strings.TrimSpace(*identityFile) != "" {
+		loadedIdentity, err := aip2p.LoadAgentIdentity(strings.TrimSpace(*identityFile))
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(*author) == "" && strings.TrimSpace(loadedIdentity.Author) != "" {
+			*author = strings.TrimSpace(loadedIdentity.Author)
+		}
+		if strings.TrimSpace(*author) != "" && strings.TrimSpace(loadedIdentity.Author) != "" && strings.TrimSpace(*author) != strings.TrimSpace(loadedIdentity.Author) {
+			return errors.New("author does not match identity-file author")
+		}
+		identity = &loadedIdentity
 	}
 
 	var replyTo *aip2p.MessageLink
@@ -84,6 +102,7 @@ func runPublish(args []string) error {
 		Body:       *body,
 		ReplyTo:    replyTo,
 		Tags:       splitCSV(*tagsCSV),
+		Identity:   identity,
 		Extensions: extensions,
 		CreatedAt:  time.Now().UTC(),
 	})
@@ -138,6 +157,57 @@ func runShow(args []string) error {
 	}{
 		Message: msg,
 		Body:    body,
+	})
+}
+
+func runIdentity(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: aip2p identity init [flags]")
+	}
+	switch args[0] {
+	case "init":
+		return runIdentityInit(args[1:])
+	default:
+		return errors.New("usage: aip2p identity init [flags]")
+	}
+}
+
+func runIdentityInit(args []string) error {
+	fs := flag.NewFlagSet("identity init", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	agentID := fs.String("agent-id", "", "stable agent id")
+	author := fs.String("author", "", "default author for this identity")
+	out := fs.String("out", "./agent-identity.json", "identity file output path")
+	force := fs.Bool("force", false, "overwrite output file if it exists")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	outputPath := strings.TrimSpace(*out)
+	if outputPath == "" {
+		return errors.New("out is required")
+	}
+	if !*force {
+		if _, err := os.Stat(outputPath); err == nil {
+			return fmt.Errorf("identity file already exists: %s", outputPath)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+	identity, err := aip2p.NewAgentIdentity(*agentID, *author, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if err := aip2p.SaveAgentIdentity(outputPath, identity); err != nil {
+		return err
+	}
+	return writeJSON(map[string]any{
+		"agent_id":   identity.AgentID,
+		"author":     identity.Author,
+		"key_type":   identity.KeyType,
+		"public_key": identity.PublicKey,
+		"created_at": identity.CreatedAt,
+		"file":       outputPath,
 	})
 }
 
@@ -200,7 +270,7 @@ func writeJSON(v any) error {
 }
 
 func usageError() error {
-	return errors.New("usage: aip2p <publish|verify|show|sync> [flags]")
+	return errors.New("usage: aip2p <identity|publish|verify|show|sync> [flags]")
 }
 
 func loadJSONObject(inline, path string) (map[string]any, error) {

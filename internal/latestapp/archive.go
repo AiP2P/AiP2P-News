@@ -83,18 +83,20 @@ func markdownArchiveRelativePath(bundle Bundle) string {
 
 func renderBundleMarkdown(bundle Bundle) ([]byte, error) {
 	meta := map[string]any{
-		"protocol":       bundle.Message.Protocol,
-		"project":        stringValue(bundle.Message.Extensions["project"]),
-		"kind":           bundle.Message.Kind,
-		"infohash":       bundle.InfoHash,
-		"magnet":         bundle.Magnet,
-		"author":         bundle.Message.Author,
-		"created_at_utc": bundle.CreatedAt.UTC().Format(time.RFC3339),
-		"channel":        bundle.Message.Channel,
-		"title":          bundle.Message.Title,
-		"tags":           bundle.Message.Tags,
-		"reply_to":       bundle.Message.ReplyTo,
-		"extensions":     bundle.Message.Extensions,
+		"protocol":             bundle.Message.Protocol,
+		"project":              stringValue(bundle.Message.Extensions["project"]),
+		"kind":                 bundle.Message.Kind,
+		"infohash":             bundle.InfoHash,
+		"magnet":               bundle.Magnet,
+		"author":               bundle.Message.Author,
+		"origin":               bundle.Message.Origin,
+		"shared_by_local_node": bundle.SharedByLocalNode,
+		"created_at_utc":       bundle.CreatedAt.UTC().Format(time.RFC3339),
+		"channel":              bundle.Message.Channel,
+		"title":                bundle.Message.Title,
+		"tags":                 bundle.Message.Tags,
+		"reply_to":             bundle.Message.ReplyTo,
+		"extensions":           bundle.Message.Extensions,
 	}
 	metaJSON, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {

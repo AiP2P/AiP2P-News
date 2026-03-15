@@ -885,20 +885,27 @@ func (a *App) latestHistoryListPayload() (HistoryManifestAPIResponse, error) {
 	}
 	entries := make([]HistoryManifestEntry, 0, len(index.Bundles))
 	for _, bundle := range index.Bundles {
+		originAuthor, originAgentID, originKeyType, originPublicKey, originSigned := originSummary(bundle.Message.Origin)
 		entries = append(entries, HistoryManifestEntry{
-			Protocol:  "aip2p-sync/0.1",
-			InfoHash:  strings.ToLower(strings.TrimSpace(bundle.InfoHash)),
-			Magnet:    strings.TrimSpace(bundle.Magnet),
-			SizeBytes: bundle.SizeBytes,
-			Kind:      strings.TrimSpace(bundle.Message.Kind),
-			Channel:   strings.TrimSpace(bundle.Message.Channel),
-			Title:     strings.TrimSpace(bundle.Message.Title),
-			Author:    strings.TrimSpace(bundle.Message.Author),
-			CreatedAt: strings.TrimSpace(bundle.Message.CreatedAt),
-			Project:   a.project,
-			NetworkID: networkID,
-			Topics:    stringSlice(bundle.Message.Extensions["topics"]),
-			Tags:      append([]string(nil), bundle.Message.Tags...),
+			Protocol:          "aip2p-sync/0.1",
+			InfoHash:          strings.ToLower(strings.TrimSpace(bundle.InfoHash)),
+			Magnet:            strings.TrimSpace(bundle.Magnet),
+			SizeBytes:         bundle.SizeBytes,
+			Kind:              strings.TrimSpace(bundle.Message.Kind),
+			Channel:           strings.TrimSpace(bundle.Message.Channel),
+			Title:             strings.TrimSpace(bundle.Message.Title),
+			Author:            strings.TrimSpace(bundle.Message.Author),
+			CreatedAt:         strings.TrimSpace(bundle.Message.CreatedAt),
+			Project:           a.project,
+			NetworkID:         networkID,
+			Topics:            stringSlice(bundle.Message.Extensions["topics"]),
+			Tags:              append([]string(nil), bundle.Message.Tags...),
+			OriginAuthor:      originAuthor,
+			OriginAgentID:     originAgentID,
+			OriginKeyType:     originKeyType,
+			OriginPublicKey:   originPublicKey,
+			OriginSigned:      originSigned,
+			SharedByLocalNode: bundle.SharedByLocalNode,
 		})
 	}
 	return HistoryManifestAPIResponse{
@@ -2124,32 +2131,36 @@ func apiPosts(posts []Post) []map[string]any {
 }
 
 func apiPost(post Post, withBody bool) map[string]any {
+	origin := apiOrigin(post.Message.Origin)
 	payload := map[string]any{
-		"infohash":         post.InfoHash,
-		"magnet":           post.Magnet,
-		"archive_md":       post.ArchiveMD,
-		"title":            post.Message.Title,
-		"author":           post.Message.Author,
-		"created_at":       post.CreatedAt.Format(time.RFC3339),
-		"channel":          post.Message.Channel,
-		"channel_group":    post.ChannelGroup,
-		"source_name":      post.SourceName,
-		"source_url":       post.SourceURL,
-		"topics":           post.Topics,
-		"post_type":        post.PostType,
-		"summary":          post.Summary,
-		"reply_count":      post.ReplyCount,
-		"reaction_count":   post.ReactionCount,
-		"vote_score":       post.VoteScore,
-		"truth_score":      scoreValue(post.TruthScoreAverage),
-		"source_quality":   scoreValue(post.SourceScoreAverage),
-		"thread_path":      "/posts/" + post.InfoHash,
-		"source_path":      sourcePath(post.SourceName),
-		"latest_reaction":  post.LatestReactionAuthor,
-		"event_time":       timeValue(post.EventTime),
-		"topic_paths":      topicPaths(post.Topics),
-		"message_tags":     post.Message.Tags,
-		"message_protocol": post.Message.Protocol,
+		"infohash":             post.InfoHash,
+		"magnet":               post.Magnet,
+		"archive_md":           post.ArchiveMD,
+		"title":                post.Message.Title,
+		"author":               post.Message.Author,
+		"origin":               origin,
+		"origin_signed":        origin != nil,
+		"shared_by_local_node": post.SharedByLocalNode,
+		"created_at":           post.CreatedAt.Format(time.RFC3339),
+		"channel":              post.Message.Channel,
+		"channel_group":        post.ChannelGroup,
+		"source_name":          post.SourceName,
+		"source_url":           post.SourceURL,
+		"topics":               post.Topics,
+		"post_type":            post.PostType,
+		"summary":              post.Summary,
+		"reply_count":          post.ReplyCount,
+		"reaction_count":       post.ReactionCount,
+		"vote_score":           post.VoteScore,
+		"truth_score":          scoreValue(post.TruthScoreAverage),
+		"source_quality":       scoreValue(post.SourceScoreAverage),
+		"thread_path":          "/posts/" + post.InfoHash,
+		"source_path":          sourcePath(post.SourceName),
+		"latest_reaction":      post.LatestReactionAuthor,
+		"event_time":           timeValue(post.EventTime),
+		"topic_paths":          topicPaths(post.Topics),
+		"message_tags":         post.Message.Tags,
+		"message_protocol":     post.Message.Protocol,
 	}
 	if withBody {
 		payload["body"] = post.Body
@@ -2160,14 +2171,18 @@ func apiPost(post Post, withBody bool) map[string]any {
 func apiReplies(replies []Reply) []map[string]any {
 	out := make([]map[string]any, 0, len(replies))
 	for _, reply := range replies {
+		origin := apiOrigin(reply.Message.Origin)
 		out = append(out, map[string]any{
-			"infohash":    reply.InfoHash,
-			"magnet":      reply.Magnet,
-			"archive_md":  reply.ArchiveMD,
-			"author":      reply.Message.Author,
-			"created_at":  reply.CreatedAt.Format(time.RFC3339),
-			"parent_hash": reply.ParentInfoHash,
-			"body":        reply.Body,
+			"infohash":             reply.InfoHash,
+			"magnet":               reply.Magnet,
+			"archive_md":           reply.ArchiveMD,
+			"author":               reply.Message.Author,
+			"origin":               origin,
+			"origin_signed":        origin != nil,
+			"shared_by_local_node": reply.SharedByLocalNode,
+			"created_at":           reply.CreatedAt.Format(time.RFC3339),
+			"parent_hash":          reply.ParentInfoHash,
+			"body":                 reply.Body,
 		})
 	}
 	return out
@@ -2176,20 +2191,48 @@ func apiReplies(replies []Reply) []map[string]any {
 func apiReactions(reactions []Reaction) []map[string]any {
 	out := make([]map[string]any, 0, len(reactions))
 	for _, reaction := range reactions {
+		origin := apiOrigin(reaction.Message.Origin)
 		out = append(out, map[string]any{
-			"infohash":      reaction.InfoHash,
-			"magnet":        reaction.Magnet,
-			"archive_md":    reaction.ArchiveMD,
-			"author":        reaction.Message.Author,
-			"created_at":    reaction.CreatedAt.Format(time.RFC3339),
-			"subject_hash":  reaction.SubjectInfoHash,
-			"reaction_type": reaction.ReactionType,
-			"vote_value":    reaction.VoteValue,
-			"score_value":   scoreValue(reaction.ScoreValue),
-			"explanation":   reaction.Explanation,
+			"infohash":             reaction.InfoHash,
+			"magnet":               reaction.Magnet,
+			"archive_md":           reaction.ArchiveMD,
+			"author":               reaction.Message.Author,
+			"origin":               origin,
+			"origin_signed":        origin != nil,
+			"shared_by_local_node": reaction.SharedByLocalNode,
+			"created_at":           reaction.CreatedAt.Format(time.RFC3339),
+			"subject_hash":         reaction.SubjectInfoHash,
+			"reaction_type":        reaction.ReactionType,
+			"vote_value":           reaction.VoteValue,
+			"score_value":          scoreValue(reaction.ScoreValue),
+			"explanation":          reaction.Explanation,
 		})
 	}
 	return out
+}
+
+func apiOrigin(origin *MessageOrigin) map[string]any {
+	if origin == nil {
+		return nil
+	}
+	return map[string]any{
+		"author":     origin.Author,
+		"agent_id":   origin.AgentID,
+		"key_type":   origin.KeyType,
+		"public_key": origin.PublicKey,
+		"signature":  origin.Signature,
+	}
+}
+
+func originSummary(origin *MessageOrigin) (author, agentID, keyType, publicKey string, signed bool) {
+	if origin == nil {
+		return "", "", "", "", false
+	}
+	return strings.TrimSpace(origin.Author),
+		strings.TrimSpace(origin.AgentID),
+		strings.TrimSpace(origin.KeyType),
+		strings.TrimSpace(origin.PublicKey),
+		strings.TrimSpace(origin.Signature) != ""
 }
 
 func topicPaths(topics []string) map[string]string {

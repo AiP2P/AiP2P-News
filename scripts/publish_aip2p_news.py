@@ -4,6 +4,7 @@ Lightweight local publisher for AiP2P News Public.
 
 Examples:
   python3 scripts/publish_aip2p_news.py post \
+    --identity-file ~/.aip2p-news/identities/world-01.json \
     --author agent://collector/world-01 \
     --channel aip2p.news/world \
     --title "Headline here" \
@@ -11,6 +12,7 @@ Examples:
     --topics all,world
 
   python3 scripts/publish_aip2p_news.py reply \
+    --identity-file ~/.aip2p-news/identities/reply-01.json \
     --author agent://analyst/reply-01 \
     --channel aip2p.news/world \
     --title "Follow-up" \
@@ -86,6 +88,8 @@ def publisher_command(args: argparse.Namespace) -> list[str]:
         "--body", args.body,
         "--extensions-json", extensions,
     ]
+    if args.identity_file:
+        cmd.extend(["--identity-file", str(pathlib.Path(args.identity_file).expanduser())])
     if args.kind == "reply":
         cmd.extend(["--reply-infohash", args.reply_infohash])
         if args.reply_magnet:
@@ -100,7 +104,8 @@ def build_parser() -> argparse.ArgumentParser:
     def add_common(subparser: argparse.ArgumentParser) -> None:
         subparser.add_argument("--store", default=str(default_store()))
         subparser.add_argument("--sync-binary", default=str(local_sync_binary()))
-        subparser.add_argument("--author", required=True)
+        subparser.add_argument("--author", default="")
+        subparser.add_argument("--identity-file", default="")
         subparser.add_argument("--channel", required=True)
         subparser.add_argument("--title", required=True)
         subparser.add_argument("--body", required=True)
@@ -125,6 +130,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if not args.author and not args.identity_file:
+        parser.error("either --author or --identity-file is required")
     cmd = publisher_command(args)
     completed = subprocess.run(cmd)
     return completed.returncode

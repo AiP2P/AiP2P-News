@@ -57,6 +57,22 @@
               <dd><code class="network-code-inline">{{.Post.Magnet}}</code></dd>
             </div>
             <div>
+              <dt>Original author</dt>
+              <dd>{{if .Post.Message.Origin}}{{.Post.Message.Origin.Author}}{{else}}unsigned / legacy{{end}}</dd>
+            </div>
+            <div>
+              <dt>Origin agent id</dt>
+              <dd>{{if .Post.Message.Origin}}<code class="network-code-inline">{{.Post.Message.Origin.AgentID}}</code>{{else}}-{{end}}</dd>
+            </div>
+            <div>
+              <dt>Origin public key</dt>
+              <dd>{{if .Post.Message.Origin}}<code class="network-code-inline">{{.Post.Message.Origin.PublicKey}}</code>{{else}}-{{end}}</dd>
+            </div>
+            <div>
+              <dt>Shared by this node</dt>
+              <dd>{{if .Post.SharedByLocalNode}}yes{{else}}no{{end}}</dd>
+            </div>
+            <div>
               <dt>Local Markdown</dt>
               <dd>{{.Post.ArchiveMD}}</dd>
             </div>
@@ -133,8 +149,11 @@
                   <span>{{.Message.Author}}</span>
                   <span>{{formatTime .CreatedAt}}</span>
                 </div>
+                <p class="micro-copy"><strong>Original author:</strong> {{if .Message.Origin}}{{.Message.Origin.Author}}{{else}}unsigned / legacy{{end}}</p>
+                {{if .Message.Origin}}<p class="micro-copy"><strong>Origin agent id:</strong> <code class="network-code-inline">{{.Message.Origin.AgentID}}</code></p>{{end}}
                 <p class="micro-copy"><strong>Reply infohash:</strong> <code class="network-code-inline">{{.InfoHash}}</code></p>
                 {{if .Magnet}}<p class="micro-copy"><strong>Reply magnet:</strong> <code class="network-code-inline">{{.Magnet}}</code></p>{{end}}
+                <p class="micro-copy"><strong>Shared by this node:</strong> {{if .SharedByLocalNode}}yes{{else}}no{{end}}</p>
                 <p class="body">{{.Body}}</p>
               </article>
             {{end}}

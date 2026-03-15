@@ -137,13 +137,14 @@ func loadBundle(dir string, ref torrentRef, project string) (Bundle, bool, error
 		return Bundle{}, false, err
 	}
 	return Bundle{
-		InfoHash:  ref.InfoHash,
-		Magnet:    ref.Magnet,
-		SizeBytes: ref.SizeBytes,
-		Dir:       dir,
-		Message:   msg,
-		Body:      string(body),
-		CreatedAt: createdAt,
+		InfoHash:          ref.InfoHash,
+		Magnet:            ref.Magnet,
+		SizeBytes:         ref.SizeBytes,
+		Dir:               dir,
+		Message:           msg,
+		Body:              string(body),
+		CreatedAt:         createdAt,
+		SharedByLocalNode: true,
 	}, true, nil
 }
 

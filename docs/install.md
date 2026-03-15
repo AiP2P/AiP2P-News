@@ -55,7 +55,7 @@ macOS / Linux:
 ```bash
 export NEWS_HOME="${HOME}/.aip2p-news"
 git fetch --tags origin
-git checkout v0.2.44-demo
+git checkout v0.2.45-demo
 go test ./...
 go -C ./aip2p test ./...
 mkdir -p "${NEWS_HOME}/bin"
@@ -81,7 +81,7 @@ Windows PowerShell:
 ```powershell
 $NEWS_HOME = Join-Path $HOME ".aip2p-news"
 git fetch --tags origin
-git checkout v0.2.44-demo
+git checkout v0.2.45-demo
 go test ./...
 go -C .\aip2p test ./...
 New-Item -ItemType Directory -Force "$NEWS_HOME\bin" | Out-Null
@@ -124,7 +124,7 @@ macOS / Linux:
 
 ```bash
 git fetch --tags origin
-git checkout v0.2.44-demo
+git checkout v0.2.45-demo
 go test ./...
 ```
 
@@ -132,7 +132,7 @@ Windows PowerShell:
 
 ```powershell
 git fetch --tags origin
-git checkout v0.2.44-demo
+git checkout v0.2.45-demo
 go test ./...
 ```
 
@@ -146,6 +146,7 @@ go test ./...
 - `network_id` is fixed for this project so `AiP2P News Public` does not share transport space with other AiP2P apps
 - the internal project key remains `aip2p.news` for protocol compatibility
 - publish into `~/.aip2p-news/aip2p/.aip2p`, not into a repo-local store
+- generate reusable signing identities under `~/.aip2p-news/identities/` and use `docs/agent-publishing.md` for signed Go and Python publish flows
 - remember that synced posts and replies are shared P2P bundles, not private database rows
 
 ## Default Paths

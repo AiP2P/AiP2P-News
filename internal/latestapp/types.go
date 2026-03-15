@@ -13,6 +13,7 @@ type Message struct {
 	BodySHA256 string         `json:"body_sha256"`
 	ReplyTo    *MessageLink   `json:"reply_to,omitempty"`
 	Tags       []string       `json:"tags,omitempty"`
+	Origin     *MessageOrigin `json:"origin,omitempty"`
 	Extensions map[string]any `json:"extensions,omitempty"`
 }
 
@@ -21,15 +22,24 @@ type MessageLink struct {
 	Magnet   string `json:"magnet,omitempty"`
 }
 
+type MessageOrigin struct {
+	Author    string `json:"author"`
+	AgentID   string `json:"agent_id"`
+	KeyType   string `json:"key_type"`
+	PublicKey string `json:"public_key"`
+	Signature string `json:"signature"`
+}
+
 type Bundle struct {
-	InfoHash  string
-	Magnet    string
-	SizeBytes int64
-	Dir       string
-	ArchiveMD string
-	Message   Message
-	Body      string
-	CreatedAt time.Time
+	InfoHash          string
+	Magnet            string
+	SizeBytes         int64
+	Dir               string
+	ArchiveMD         string
+	Message           Message
+	Body              string
+	CreatedAt         time.Time
+	SharedByLocalNode bool
 }
 
 type Post struct {
@@ -80,15 +90,15 @@ type FacetStat struct {
 }
 
 type FeedOptions struct {
-	Channel string
-	Topic   string
-	Source  string
-	Sort    string
-	Query   string
-	Window  string
-	Page    int
+	Channel  string
+	Topic    string
+	Source   string
+	Sort     string
+	Query    string
+	Window   string
+	Page     int
 	PageSize int
-	Now     time.Time
+	Now      time.Time
 }
 
 type FeedFacet struct {
@@ -130,9 +140,9 @@ type PageSizeOption struct {
 }
 
 type PaginationLink struct {
-	Label   string
-	URL     string
-	Active  bool
+	Label    string
+	URL      string
+	Active   bool
 	Disabled bool
 }
 
@@ -182,19 +192,25 @@ type ArchiveEntry struct {
 }
 
 type HistoryManifestEntry struct {
-	Protocol  string   `json:"protocol"`
-	InfoHash  string   `json:"infohash"`
-	Magnet    string   `json:"magnet"`
-	SizeBytes int64    `json:"size_bytes,omitempty"`
-	Kind      string   `json:"kind,omitempty"`
-	Channel   string   `json:"channel,omitempty"`
-	Title     string   `json:"title,omitempty"`
-	Author    string   `json:"author,omitempty"`
-	CreatedAt string   `json:"created_at,omitempty"`
-	Project   string   `json:"project,omitempty"`
-	NetworkID string   `json:"network_id,omitempty"`
-	Topics    []string `json:"topics,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
+	Protocol          string   `json:"protocol"`
+	InfoHash          string   `json:"infohash"`
+	Magnet            string   `json:"magnet"`
+	SizeBytes         int64    `json:"size_bytes,omitempty"`
+	Kind              string   `json:"kind,omitempty"`
+	Channel           string   `json:"channel,omitempty"`
+	Title             string   `json:"title,omitempty"`
+	Author            string   `json:"author,omitempty"`
+	CreatedAt         string   `json:"created_at,omitempty"`
+	Project           string   `json:"project,omitempty"`
+	NetworkID         string   `json:"network_id,omitempty"`
+	Topics            []string `json:"topics,omitempty"`
+	Tags              []string `json:"tags,omitempty"`
+	OriginAuthor      string   `json:"origin_author,omitempty"`
+	OriginAgentID     string   `json:"origin_agent_id,omitempty"`
+	OriginKeyType     string   `json:"origin_key_type,omitempty"`
+	OriginPublicKey   string   `json:"origin_public_key,omitempty"`
+	OriginSigned      bool     `json:"origin_signed,omitempty"`
+	SharedByLocalNode bool     `json:"shared_by_local_node,omitempty"`
 }
 
 type HistoryManifestAPIResponse struct {
