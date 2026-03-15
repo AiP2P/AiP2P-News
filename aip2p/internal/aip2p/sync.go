@@ -152,8 +152,15 @@ func RunSync(ctx context.Context, opts SyncOptions, logf func(string, ...any)) e
 		subscriptions: subscriptions,
 		writerPolicy:  writerPolicy,
 		writerPath:    opts.WriterPolicyPath,
+		delegationDir: delegationDirForWriterPolicy(opts.WriterPolicyPath),
+		revocationDir: revocationDirForWriterPolicy(opts.WriterPolicyPath),
 		announced:     make(map[string]struct{}),
 		seeded:        make(map[string]struct{}),
+	}
+	if store, err := LoadDelegationStore(runtime.delegationDir, runtime.revocationDir); err == nil {
+		runtime.delegations = store
+	} else {
+		return err
 	}
 	runtime.pubsub, err = startPubSubRuntime(ctx, libp2pRuntime, subscriptions, runtime.handleAnnouncement)
 	if err != nil {
@@ -235,6 +242,9 @@ type syncRuntime struct {
 	subscriptions SyncSubscriptions
 	writerPolicy  WriterPolicy
 	writerPath    string
+	delegations   DelegationStore
+	delegationDir string
+	revocationDir string
 	announced     map[string]struct{}
 	seeded        map[string]struct{}
 	activity      SyncActivityStatus
@@ -274,16 +284,22 @@ func (r *syncRuntime) queueRefs() int {
 func (r *syncRuntime) refreshWriterPolicy(logf func(string, ...any)) error {
 	if strings.TrimSpace(r.writerPath) == "" {
 		r.writerPolicy = defaultWriterPolicy()
+		r.delegations = DelegationStore{}
 		return nil
 	}
 	policy, err := LoadWriterPolicy(r.writerPath)
 	if err != nil {
 		return err
 	}
+	store, err := LoadDelegationStore(r.delegationDir, r.revocationDir)
+	if err != nil {
+		return err
+	}
 	r.writerPolicy = policy
+	r.delegations = store
 	if logf != nil && !policy.Empty() {
 		logf(
-			"writer policy loaded: sync_mode=%s allow_unsigned=%t default_capability=%s agent_caps=%d key_caps=%d allowed_agents=%d allowed_keys=%d blocked_agents=%d blocked_keys=%d shared_registries=%d trusted_authorities=%d relay_peers=%d relay_hosts=%d",
+			"writer policy loaded: sync_mode=%s allow_unsigned=%t default_capability=%s agent_caps=%d key_caps=%d allowed_agents=%d allowed_keys=%d blocked_agents=%d blocked_keys=%d shared_registries=%d trusted_authorities=%d delegations=%d revocations=%d relay_peers=%d relay_hosts=%d",
 			policy.SyncMode,
 			policy.AllowUnsigned,
 			policy.DefaultCapability,
@@ -295,6 +311,8 @@ func (r *syncRuntime) refreshWriterPolicy(logf func(string, ...any)) error {
 			len(policy.BlockedPublicKeys),
 			len(policy.SharedRegistries),
 			len(policy.TrustedAuthorities),
+			len(store.Delegations),
+			len(store.Revocations),
 			len(policy.RelayPeerTrust),
 			len(policy.RelayHostTrust),
 		)
@@ -336,7 +354,7 @@ func (r *syncRuntime) processQueue(ctx context.Context, direct []string, timeout
 		logf("write sync status: %v", err)
 	}
 	for _, ref := range refs {
-		result := syncRef(ctx, r.torrentClient, r.store, ref, timeout, r.netCfg.LANPeers, r.trackers, r.subscriptions, r.writerPolicy)
+		result := syncRef(ctx, r.torrentClient, r.store, ref, timeout, r.netCfg.LANPeers, r.trackers, r.subscriptions, r.writerPolicy, r.delegations)
 		r.recordResult(result)
 		if result.Status == "imported" || result.Status == "skipped" {
 			if err := removeSyncRef(r.queuePath, ref); err != nil && logf != nil {
@@ -416,7 +434,7 @@ func (r *syncRuntime) announceLocalBundles(ctx context.Context, logf func(string
 			announcement.NetworkID = r.netCfg.NetworkID
 		}
 		alwaysPublish := strings.EqualFold(announcement.Kind, historyManifestKind)
-		if !alwaysPublish && !r.writerPolicy.AcceptsOrigin(announcement.Origin) {
+		if !alwaysPublish && !r.writerPolicy.AcceptsOriginWithDelegation(announcement.Origin, announcement.Kind, r.delegations) {
 			continue
 		}
 		announcement.Magnet = withPeerHints(announcement.Magnet, r.torrentClient.ListenAddrs(), r.netCfg.LANPeers)
@@ -522,14 +540,14 @@ func (r *syncRuntime) localBundleMaySeed(torrentPath string) (bool, error) {
 	if strings.EqualFold(strings.TrimSpace(msg.Kind), historyManifestKind) {
 		return true, nil
 	}
-	return r.writerPolicy.AcceptsOrigin(msg.Origin), nil
+	return r.writerPolicy.AcceptsOriginWithDelegation(msg.Origin, msg.Kind, r.delegations), nil
 }
 
 func (r *syncRuntime) handleAnnouncement(announcement SyncAnnouncement) (bool, error) {
 	if r.netCfg.NetworkID != "" && !strings.EqualFold(strings.TrimSpace(announcement.NetworkID), r.netCfg.NetworkID) {
 		return false, nil
 	}
-	if !matchesAnnouncement(announcement, r.subscriptions, r.writerPolicy) {
+	if !matchesAnnouncement(announcement, r.subscriptions, r.writerPolicy, r.delegations) {
 		return false, nil
 	}
 	ref, err := ParseSyncRef(announcement.Magnet)
@@ -577,7 +595,7 @@ func (r *syncRuntime) enqueueHistoryFromLANPeers(ctx context.Context, logf func(
 			if r.netCfg.NetworkID != "" && announcement.NetworkID != "" && !strings.EqualFold(announcement.NetworkID, r.netCfg.NetworkID) {
 				continue
 			}
-			if !matchesAnnouncement(announcement, r.subscriptions, r.writerPolicy) {
+			if !matchesAnnouncement(announcement, r.subscriptions, r.writerPolicy, r.delegations) {
 				continue
 			}
 			ref, err := syncRefFromAnnouncement(announcement)
@@ -1154,7 +1172,7 @@ func sanitizeQueuedSyncRef(raw string, lanPeers []string) (string, bool, error) 
 	return uri.String(), true, nil
 }
 
-func syncRef(ctx context.Context, client *torrent.Client, store *Store, ref SyncRef, timeout time.Duration, lanPeers []string, trackers []string, rules SyncSubscriptions, policy WriterPolicy) SyncItemResult {
+func syncRef(ctx context.Context, client *torrent.Client, store *Store, ref SyncRef, timeout time.Duration, lanPeers []string, trackers []string, rules SyncSubscriptions, policy WriterPolicy, delegations DelegationStore) SyncItemResult {
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -1248,7 +1266,7 @@ func syncRef(ctx context.Context, client *torrent.Client, store *Store, ref Sync
 			Message:  fmt.Sprintf("validate downloaded bundle: %v", err),
 		}
 	}
-	if !policy.AcceptsOrigin(msg.Origin) {
+	if !policy.AcceptsOriginWithDelegation(msg.Origin, msg.Kind, delegations) {
 		t.Drop()
 		return SyncItemResult{
 			Ref:      ref.Raw,
@@ -1284,6 +1302,22 @@ func syncRef(ctx context.Context, client *torrent.Client, store *Store, ref Sync
 		Status:     "imported",
 		Message:    "bundle downloaded and indexed in local store",
 	}
+}
+
+func delegationDirForWriterPolicy(writerPolicyPath string) string {
+	root := strings.TrimSpace(filepath.Dir(strings.TrimSpace(writerPolicyPath)))
+	if root == "" || root == "." {
+		return ""
+	}
+	return filepath.Join(root, "delegations")
+}
+
+func revocationDirForWriterPolicy(writerPolicyPath string) string {
+	root := strings.TrimSpace(filepath.Dir(strings.TrimSpace(writerPolicyPath)))
+	if root == "" || root == "." {
+		return ""
+	}
+	return filepath.Join(root, "revocations")
 }
 
 func writeTorrentFile(path string, mi metainfo.MetaInfo) error {

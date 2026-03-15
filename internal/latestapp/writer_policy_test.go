@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestApplyWriterPolicyOnlyKeepsReadWriteOrigins(t *testing.T) {
@@ -254,5 +255,125 @@ func TestLoadWriterPolicyMergesSharedRegistry(t *testing.T) {
 	}
 	if policy.acceptsRelay("", "mirror.example") {
 		t.Fatal("expected relay host from shared registry to be blocked")
+	}
+}
+
+func TestApplyWriterPolicyDelegationUsesParentCapability(t *testing.T) {
+	t.Parallel()
+
+	post := Bundle{
+		InfoHash: "post-delegated",
+		Message: Message{
+			Kind:   "post",
+			Title:  "Delegated",
+			Author: "agent://writer/child",
+			Origin: &MessageOrigin{
+				AgentID:   "agent://writer/child",
+				PublicKey: "child-key",
+			},
+			Extensions: map[string]any{"project": "aip2p.news", "topics": []any{"all", "world"}},
+		},
+	}
+	index := buildIndex([]Bundle{post}, "aip2p.news")
+	policy := WriterPolicy{
+		SyncMode:          WriterSyncModeTrustedWritersOnly,
+		DefaultCapability: WriterCapabilityReadOnly,
+		AgentCapabilities: map[string]WriterCapability{
+			"agent://writer/parent": WriterCapabilityReadWrite,
+		},
+	}
+	store := DelegationStore{
+		Delegations: []WriterDelegation{
+			{
+				ParentAgentID:   "agent://writer/parent",
+				ParentPublicKey: "parent-key",
+				ChildAgentID:    "agent://writer/child",
+				ChildPublicKey:  "child-key",
+				Scopes:          []string{"post"},
+				CreatedAt:       "2024-03-15T12:00:00Z",
+			},
+		},
+	}
+
+	filtered := ApplyWriterPolicyWithDelegations(index, "aip2p.news", policy, store)
+	if len(filtered.Posts) != 1 {
+		t.Fatalf("posts len = %d, want 1", len(filtered.Posts))
+	}
+	if filtered.Posts[0].Delegation == nil || filtered.Posts[0].Delegation.ParentAgentID != "agent://writer/parent" {
+		t.Fatal("expected delegated post to carry parent metadata")
+	}
+}
+
+func TestApplyWriterPolicyDelegationDoesNotOverrideExplicitChildReadOnly(t *testing.T) {
+	t.Parallel()
+
+	post := Bundle{
+		InfoHash: "post-delegated",
+		Message: Message{
+			Kind:   "post",
+			Title:  "Delegated",
+			Author: "agent://writer/child",
+			Origin: &MessageOrigin{
+				AgentID:   "agent://writer/child",
+				PublicKey: "child-key",
+			},
+			Extensions: map[string]any{"project": "aip2p.news", "topics": []any{"all", "world"}},
+		},
+	}
+	index := buildIndex([]Bundle{post}, "aip2p.news")
+	policy := WriterPolicy{
+		SyncMode:          WriterSyncModeTrustedWritersOnly,
+		DefaultCapability: WriterCapabilityReadOnly,
+		AgentCapabilities: map[string]WriterCapability{
+			"agent://writer/parent": WriterCapabilityReadWrite,
+			"agent://writer/child":  WriterCapabilityReadOnly,
+		},
+	}
+	store := DelegationStore{
+		Delegations: []WriterDelegation{
+			{
+				ParentAgentID:   "agent://writer/parent",
+				ParentPublicKey: "parent-key",
+				ChildAgentID:    "agent://writer/child",
+				ChildPublicKey:  "child-key",
+				Scopes:          []string{"post"},
+				CreatedAt:       "2024-03-15T12:00:00Z",
+			},
+		},
+	}
+
+	filtered := ApplyWriterPolicyWithDelegations(index, "aip2p.news", policy, store)
+	if len(filtered.Posts) != 0 {
+		t.Fatalf("posts len = %d, want 0", len(filtered.Posts))
+	}
+}
+
+func TestDelegationStoreRevocationDisablesParentChildLink(t *testing.T) {
+	t.Parallel()
+
+	store := DelegationStore{
+		Delegations: []WriterDelegation{
+			{
+				ParentAgentID:   "agent://writer/parent",
+				ParentPublicKey: "parent-key",
+				ChildAgentID:    "agent://writer/child",
+				ChildPublicKey:  "child-key",
+				Scopes:          []string{"reply"},
+				CreatedAt:       "2024-03-15T12:00:00Z",
+			},
+		},
+		Revocations: []WriterRevocation{
+			{
+				ParentAgentID:   "agent://writer/parent",
+				ParentPublicKey: "parent-key",
+				ChildAgentID:    "agent://writer/child",
+				ChildPublicKey:  "child-key",
+				CreatedAt:       "2024-03-15T12:10:00Z",
+			},
+		},
+	}
+
+	if _, ok := store.ActiveDelegationFor("agent://writer/child", "child-key", "reply", time.Date(2024, 3, 15, 13, 0, 0, 0, time.UTC)); ok {
+		t.Fatal("expected revoked delegation to be inactive")
 	}
 }

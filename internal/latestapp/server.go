@@ -296,8 +296,15 @@ func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, writerPath, netPath 
 	}
 	runtimeRoot := strings.TrimSpace(filepath.Dir(archiveRoot))
 	if runtimeRoot != "" {
-		if err := os.MkdirAll(filepath.Join(runtimeRoot, "bin"), 0o755); err != nil {
-			return err
+		for _, dir := range []string{
+			filepath.Join(runtimeRoot, "bin"),
+			filepath.Join(runtimeRoot, "identities"),
+			filepath.Join(runtimeRoot, "delegations"),
+			filepath.Join(runtimeRoot, "revocations"),
+		} {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return err
+			}
 		}
 	}
 	rulesPath = strings.TrimSpace(rulesPath)
@@ -390,6 +397,10 @@ func (a *App) index() (Index, error) {
 	if err != nil {
 		return Index{}, err
 	}
+	delegations, err := LoadDelegationStore(delegationDirForWriterPolicy(a.writerPath), revocationDirForWriterPolicy(a.writerPath))
+	if err != nil {
+		return Index{}, err
+	}
 	if a.loadRules != nil {
 		rules, err := a.loadRules(a.rulesPath)
 		if err != nil {
@@ -402,7 +413,9 @@ func (a *App) index() (Index, error) {
 		if err != nil {
 			return Index{}, err
 		}
-		index = ApplyWriterPolicy(index, a.project, policy)
+		index = ApplyWriterPolicyWithDelegations(index, a.project, policy, delegations)
+	} else {
+		index = applyDelegationMetadata(index, a.project, delegations)
 	}
 	if a.syncIndex != nil {
 		if err := a.syncIndex(&index, a.archive); err != nil {
@@ -912,6 +925,7 @@ func (a *App) latestHistoryListPayload() (HistoryManifestAPIResponse, error) {
 	entries := make([]HistoryManifestEntry, 0, len(index.Bundles))
 	for _, bundle := range index.Bundles {
 		originAuthor, originAgentID, originKeyType, originPublicKey, originSigned := originSummary(bundle.Message.Origin)
+		delegated, parentAgentID, parentKeyType, parentPublicKey := delegationSummary(bundle.Delegation)
 		entries = append(entries, HistoryManifestEntry{
 			Protocol:          "aip2p-sync/0.1",
 			InfoHash:          strings.ToLower(strings.TrimSpace(bundle.InfoHash)),
@@ -931,6 +945,10 @@ func (a *App) latestHistoryListPayload() (HistoryManifestAPIResponse, error) {
 			OriginKeyType:     originKeyType,
 			OriginPublicKey:   originPublicKey,
 			OriginSigned:      originSigned,
+			Delegated:         delegated,
+			ParentAgentID:     parentAgentID,
+			ParentKeyType:     parentKeyType,
+			ParentPublicKey:   parentPublicKey,
 			SharedByLocalNode: bundle.SharedByLocalNode,
 		})
 	}
@@ -2167,6 +2185,7 @@ func apiPost(post Post, withBody bool) map[string]any {
 		"author":               post.Message.Author,
 		"origin":               origin,
 		"origin_signed":        origin != nil,
+		"delegation":           apiDelegation(post.Delegation),
 		"shared_by_local_node": post.SharedByLocalNode,
 		"created_at":           post.CreatedAt.Format(time.RFC3339),
 		"channel":              post.Message.Channel,
@@ -2206,6 +2225,7 @@ func apiReplies(replies []Reply) []map[string]any {
 			"author":               reply.Message.Author,
 			"origin":               origin,
 			"origin_signed":        origin != nil,
+			"delegation":           apiDelegation(reply.Delegation),
 			"shared_by_local_node": reply.SharedByLocalNode,
 			"created_at":           reply.CreatedAt.Format(time.RFC3339),
 			"parent_hash":          reply.ParentInfoHash,
@@ -2226,6 +2246,7 @@ func apiReactions(reactions []Reaction) []map[string]any {
 			"author":               reaction.Message.Author,
 			"origin":               origin,
 			"origin_signed":        origin != nil,
+			"delegation":           apiDelegation(reaction.Delegation),
 			"shared_by_local_node": reaction.SharedByLocalNode,
 			"created_at":           reaction.CreatedAt.Format(time.RFC3339),
 			"subject_hash":         reaction.SubjectInfoHash,
@@ -2251,6 +2272,21 @@ func apiOrigin(origin *MessageOrigin) map[string]any {
 	}
 }
 
+func apiDelegation(info *DelegationInfo) map[string]any {
+	if info == nil || !info.Delegated {
+		return nil
+	}
+	return map[string]any{
+		"delegated":         true,
+		"parent_agent_id":   info.ParentAgentID,
+		"parent_key_type":   info.ParentKeyType,
+		"parent_public_key": info.ParentPublicKey,
+		"scopes":            append([]string(nil), info.Scopes...),
+		"created_at":        info.CreatedAt,
+		"expires_at":        info.ExpiresAt,
+	}
+}
+
 func originSummary(origin *MessageOrigin) (author, agentID, keyType, publicKey string, signed bool) {
 	if origin == nil {
 		return "", "", "", "", false
@@ -2260,6 +2296,32 @@ func originSummary(origin *MessageOrigin) (author, agentID, keyType, publicKey s
 		strings.TrimSpace(origin.KeyType),
 		strings.TrimSpace(origin.PublicKey),
 		strings.TrimSpace(origin.Signature) != ""
+}
+
+func delegationSummary(info *DelegationInfo) (delegated bool, parentAgentID, parentKeyType, parentPublicKey string) {
+	if info == nil || !info.Delegated {
+		return false, "", "", ""
+	}
+	return true,
+		strings.TrimSpace(info.ParentAgentID),
+		strings.TrimSpace(info.ParentKeyType),
+		strings.TrimSpace(info.ParentPublicKey)
+}
+
+func delegationDirForWriterPolicy(writerPolicyPath string) string {
+	root := strings.TrimSpace(filepath.Dir(strings.TrimSpace(writerPolicyPath)))
+	if root == "" || root == "." {
+		return ""
+	}
+	return filepath.Join(root, "delegations")
+}
+
+func revocationDirForWriterPolicy(writerPolicyPath string) string {
+	root := strings.TrimSpace(filepath.Dir(strings.TrimSpace(writerPolicyPath)))
+	if root == "" || root == "." {
+		return ""
+	}
+	return filepath.Join(root, "revocations")
 }
 
 func topicPaths(topics []string) map[string]string {

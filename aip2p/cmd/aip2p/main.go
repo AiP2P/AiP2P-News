@@ -31,6 +31,8 @@ func run(args []string) error {
 	switch args[0] {
 	case "identity":
 		return runIdentity(args[1:])
+	case "delegation":
+		return runDelegation(args[1:])
 	case "publish":
 		return runPublish(args[1:])
 	case "registry":
@@ -195,6 +197,224 @@ func runIdentity(args []string) error {
 	default:
 		return errors.New("usage: aip2p identity init [flags]")
 	}
+}
+
+func runDelegation(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: aip2p delegation <grant|revoke|verify|status> [flags]")
+	}
+	switch args[0] {
+	case "grant":
+		return runDelegationGrant(args[1:])
+	case "revoke":
+		return runDelegationRevoke(args[1:])
+	case "verify":
+		return runDelegationVerify(args[1:])
+	case "status":
+		return runDelegationStatus(args[1:])
+	default:
+		return errors.New("usage: aip2p delegation <grant|revoke|verify|status> [flags]")
+	}
+}
+
+func runDelegationGrant(args []string) error {
+	fs := flag.NewFlagSet("delegation grant", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	parentIdentityFile := fs.String("parent-identity-file", "", "path to the parent/root identity JSON file")
+	childIdentityFile := fs.String("child-identity-file", "", "path to the child identity JSON file")
+	scopesCSV := fs.String("scopes", "post,reply", "comma-separated scopes")
+	out := fs.String("out", "", "delegation output file; defaults to ~/.aip2p-news/delegations/<child-agent-id>.json")
+	expiresAt := fs.String("expires-at", "", "optional RFC3339 delegation expiry")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*parentIdentityFile) == "" {
+		return errors.New("parent-identity-file is required")
+	}
+	if strings.TrimSpace(*childIdentityFile) == "" {
+		return errors.New("child-identity-file is required")
+	}
+	parent, err := aip2p.LoadAgentIdentity(strings.TrimSpace(*parentIdentityFile))
+	if err != nil {
+		return err
+	}
+	child, err := aip2p.LoadAgentIdentity(strings.TrimSpace(*childIdentityFile))
+	if err != nil {
+		return err
+	}
+	var expiry time.Time
+	if strings.TrimSpace(*expiresAt) != "" {
+		expiry, err = time.Parse(time.RFC3339, strings.TrimSpace(*expiresAt))
+		if err != nil {
+			return fmt.Errorf("parse expires-at: %w", err)
+		}
+	}
+	delegation, err := aip2p.SignWriterDelegation(parent, child, splitCSV(*scopesCSV), time.Now().UTC(), expiry)
+	if err != nil {
+		return err
+	}
+	outputPath, err := defaultDelegationOutputPath(child.AgentID, *out)
+	if err != nil {
+		return err
+	}
+	if err := aip2p.SaveWriterDelegation(outputPath, delegation); err != nil {
+		return err
+	}
+	return writeJSON(map[string]any{
+		"type":             delegation.Type,
+		"parent_agent_id":  delegation.ParentAgentID,
+		"child_agent_id":   delegation.ChildAgentID,
+		"child_public_key": delegation.ChildPublicKey,
+		"scopes":           delegation.Scopes,
+		"created_at":       delegation.CreatedAt,
+		"expires_at":       delegation.ExpiresAt,
+		"file":             outputPath,
+	})
+}
+
+func runDelegationRevoke(args []string) error {
+	fs := flag.NewFlagSet("delegation revoke", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	parentIdentityFile := fs.String("parent-identity-file", "", "path to the parent/root identity JSON file")
+	childIdentityFile := fs.String("child-identity-file", "", "path to the child identity JSON file")
+	childAgentID := fs.String("child-agent-id", "", "child agent id (used if child-identity-file is omitted)")
+	childPublicKey := fs.String("child-public-key", "", "child public key (used if child-identity-file is omitted)")
+	reason := fs.String("reason", "", "optional revocation reason")
+	out := fs.String("out", "", "revocation output file; defaults to ~/.aip2p-news/revocations/<child-agent-id>.json")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*parentIdentityFile) == "" {
+		return errors.New("parent-identity-file is required")
+	}
+	parent, err := aip2p.LoadAgentIdentity(strings.TrimSpace(*parentIdentityFile))
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(*childIdentityFile) != "" {
+		child, err := aip2p.LoadAgentIdentity(strings.TrimSpace(*childIdentityFile))
+		if err != nil {
+			return err
+		}
+		*childAgentID = child.AgentID
+		*childPublicKey = child.PublicKey
+	}
+	revocation, err := aip2p.SignWriterRevocation(parent, strings.TrimSpace(*childAgentID), strings.TrimSpace(*childPublicKey), *reason, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	outputPath, err := defaultRevocationOutputPath(revocation.ChildAgentID, *out)
+	if err != nil {
+		return err
+	}
+	if err := aip2p.SaveWriterRevocation(outputPath, revocation); err != nil {
+		return err
+	}
+	return writeJSON(map[string]any{
+		"type":             revocation.Type,
+		"parent_agent_id":  revocation.ParentAgentID,
+		"child_agent_id":   revocation.ChildAgentID,
+		"child_public_key": revocation.ChildPublicKey,
+		"reason":           revocation.Reason,
+		"created_at":       revocation.CreatedAt,
+		"file":             outputPath,
+	})
+}
+
+func runDelegationVerify(args []string) error {
+	fs := flag.NewFlagSet("delegation verify", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	path := fs.String("path", "", "delegation or revocation JSON file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*path) == "" {
+		return errors.New("path is required")
+	}
+	data, err := os.ReadFile(strings.TrimSpace(*path))
+	if err != nil {
+		return err
+	}
+	var head struct {
+		Type aip2p.DelegationKind `json:"type"`
+	}
+	if err := json.Unmarshal(data, &head); err != nil {
+		return err
+	}
+	switch head.Type {
+	case aip2p.DelegationKindWriterDelegation:
+		item, err := aip2p.LoadWriterDelegation(strings.TrimSpace(*path))
+		if err != nil {
+			return err
+		}
+		return writeJSON(map[string]any{
+			"valid":            true,
+			"type":             item.Type,
+			"parent_agent_id":  item.ParentAgentID,
+			"child_agent_id":   item.ChildAgentID,
+			"child_public_key": item.ChildPublicKey,
+			"scopes":           item.Scopes,
+			"created_at":       item.CreatedAt,
+			"expires_at":       item.ExpiresAt,
+		})
+	case aip2p.DelegationKindWriterRevocation:
+		item, err := aip2p.LoadWriterRevocation(strings.TrimSpace(*path))
+		if err != nil {
+			return err
+		}
+		return writeJSON(map[string]any{
+			"valid":            true,
+			"type":             item.Type,
+			"parent_agent_id":  item.ParentAgentID,
+			"child_agent_id":   item.ChildAgentID,
+			"child_public_key": item.ChildPublicKey,
+			"reason":           item.Reason,
+			"created_at":       item.CreatedAt,
+		})
+	default:
+		return fmt.Errorf("unsupported delegation file type %q", head.Type)
+	}
+}
+
+func runDelegationStatus(args []string) error {
+	fs := flag.NewFlagSet("delegation status", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	delegationsDir := fs.String("delegations-dir", "", "delegation directory; defaults to ~/.aip2p-news/delegations")
+	revocationsDir := fs.String("revocations-dir", "", "revocation directory; defaults to ~/.aip2p-news/revocations")
+	childAgentID := fs.String("child-agent-id", "", "child agent id to query")
+	childPublicKey := fs.String("child-public-key", "", "child public key to query")
+	scope := fs.String("scope", "post", "scope to check")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	store, err := aip2p.LoadDelegationStore(defaultDelegationsDir(*delegationsDir), defaultRevocationsDir(*revocationsDir))
+	if err != nil {
+		return err
+	}
+	active, ok := store.ActiveDelegationFor(strings.TrimSpace(*childAgentID), strings.ToLower(strings.TrimSpace(*childPublicKey)), strings.TrimSpace(*scope), time.Now().UTC())
+	if !ok {
+		return writeJSON(map[string]any{
+			"active":           false,
+			"child_agent_id":   strings.TrimSpace(*childAgentID),
+			"child_public_key": strings.ToLower(strings.TrimSpace(*childPublicKey)),
+			"scope":            strings.TrimSpace(*scope),
+			"delegations":      len(store.Delegations),
+			"revocations":      len(store.Revocations),
+		})
+	}
+	return writeJSON(map[string]any{
+		"active":            true,
+		"child_agent_id":    active.ChildAgentID,
+		"child_public_key":  active.ChildPublicKey,
+		"parent_agent_id":   active.ParentAgentID,
+		"parent_public_key": active.ParentPublicKey,
+		"scope":             strings.TrimSpace(*scope),
+		"scopes":            active.Scopes,
+		"created_at":        active.CreatedAt,
+		"expires_at":        active.ExpiresAt,
+		"delegations":       len(store.Delegations),
+		"revocations":       len(store.Revocations),
+	})
 }
 
 func runRegistry(args []string) error {
@@ -366,6 +586,62 @@ func defaultIdentityOutputPath(agentID, explicitOut string) (string, error) {
 	return filepath.Join(home, ".aip2p-news", "identities", sanitizeAgentIDForFilename(agentID)+".json"), nil
 }
 
+func defaultDelegationOutputPath(childAgentID, explicitOut string) (string, error) {
+	explicitOut = strings.TrimSpace(explicitOut)
+	if explicitOut != "" {
+		return explicitOut, nil
+	}
+	childAgentID = strings.TrimSpace(childAgentID)
+	if childAgentID == "" {
+		return "", errors.New("child-agent-id is required")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(strings.TrimSpace(home), ".aip2p-news", "delegations", sanitizeAgentIDForFilename(childAgentID)+".json"), nil
+}
+
+func defaultRevocationOutputPath(childAgentID, explicitOut string) (string, error) {
+	explicitOut = strings.TrimSpace(explicitOut)
+	if explicitOut != "" {
+		return explicitOut, nil
+	}
+	childAgentID = strings.TrimSpace(childAgentID)
+	if childAgentID == "" {
+		return "", errors.New("child-agent-id is required")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(strings.TrimSpace(home), ".aip2p-news", "revocations", sanitizeAgentIDForFilename(childAgentID)+".json"), nil
+}
+
+func defaultDelegationsDir(explicit string) string {
+	explicit = strings.TrimSpace(explicit)
+	if explicit != "" {
+		return explicit
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(strings.TrimSpace(home), ".aip2p-news", "delegations")
+}
+
+func defaultRevocationsDir(explicit string) string {
+	explicit = strings.TrimSpace(explicit)
+	if explicit != "" {
+		return explicit
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(strings.TrimSpace(home), ".aip2p-news", "revocations")
+}
+
 func sanitizeAgentIDForFilename(agentID string) string {
 	agentID = strings.TrimSpace(agentID)
 	if agentID == "" {
@@ -457,7 +733,7 @@ func writeJSON(v any) error {
 }
 
 func usageError() error {
-	return errors.New("usage: aip2p <identity|publish|registry|verify|show|sync> [flags]")
+	return errors.New("usage: aip2p <identity|delegation|publish|registry|verify|show|sync> [flags]")
 }
 
 func loadJSONObject(inline, path string) (map[string]any, error) {

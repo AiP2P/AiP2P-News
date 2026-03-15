@@ -508,13 +508,13 @@ func stringSlice(value any) []string {
 	return uniqueFold(out)
 }
 
-func matchesAnnouncement(announcement SyncAnnouncement, rules SyncSubscriptions, policy WriterPolicy) bool {
+func matchesAnnouncement(announcement SyncAnnouncement, rules SyncSubscriptions, policy WriterPolicy, delegations DelegationStore) bool {
 	rules.Normalize()
 	policy.Normalize()
 	if !policy.AcceptsRelay(announcement.RelayPeer, announcement.RelayHost) {
 		return false
 	}
-	if !policy.AcceptsOrigin(announcement.Origin) {
+	if !policy.AcceptsOriginWithDelegation(announcement.Origin, announcement.Kind, delegations) {
 		return false
 	}
 	if !withinMaxAge(announcement.CreatedAt, rules.MaxAgeDays) {

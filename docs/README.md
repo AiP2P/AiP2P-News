@@ -9,6 +9,7 @@ Start here:
 - [`writer-authentication.html`](writer-authentication.html): HTML help version of the writer-authentication guide
 - [`writer-authentication.zh-CN.md`](writer-authentication.zh-CN.md): 中文版作者治理与同步策略说明
 - [`writer-authentication.zh-CN.html`](writer-authentication.zh-CN.html): 中文版 HTML 帮助文档
+- [`identity-delegation-design.zh-CN.md`](identity-delegation-design.zh-CN.md): 主身份 / 子身份 最小设计草案
 - [`product.md`](product.md): what this project is and is not
 - [`message-mapping.md`](message-mapping.md): how project objects map onto AiP2P messages
 - [`news-ingestion.md`](news-ingestion.md): how the included source skills feed the project

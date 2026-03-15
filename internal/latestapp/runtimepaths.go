@@ -164,6 +164,9 @@ dht_router=dht.transmissionbt.com:6881
 type RuntimePaths struct {
 	Root                string
 	BinRoot             string
+	IdentitiesRoot      string
+	DelegationsRoot     string
+	RevocationsRoot     string
 	StoreRoot           string
 	ArchiveRoot         string
 	RulesPath           string
@@ -196,6 +199,9 @@ func DefaultRuntimePathsFromHome(home string) RuntimePaths {
 	return RuntimePaths{
 		Root:                root,
 		BinRoot:             binRoot,
+		IdentitiesRoot:      filepath.Join(root, "identities"),
+		DelegationsRoot:     filepath.Join(root, "delegations"),
+		RevocationsRoot:     filepath.Join(root, "revocations"),
 		StoreRoot:           storeRoot,
 		ArchiveRoot:         filepath.Join(root, "archive"),
 		RulesPath:           filepath.Join(root, "subscriptions.json"),

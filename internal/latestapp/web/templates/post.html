@@ -69,6 +69,18 @@
               <dd>{{if .Post.Message.Origin}}<code class="network-code-inline">{{.Post.Message.Origin.PublicKey}}</code>{{else}}-{{end}}</dd>
             </div>
             <div>
+              <dt>Delegated writer</dt>
+              <dd>{{if .Post.Delegation}}yes{{else}}no{{end}}</dd>
+            </div>
+            <div>
+              <dt>Parent agent id</dt>
+              <dd>{{if .Post.Delegation}}<code class="network-code-inline">{{.Post.Delegation.ParentAgentID}}</code>{{else}}-{{end}}</dd>
+            </div>
+            <div>
+              <dt>Parent public key</dt>
+              <dd>{{if .Post.Delegation}}<code class="network-code-inline">{{.Post.Delegation.ParentPublicKey}}</code>{{else}}-{{end}}</dd>
+            </div>
+            <div>
               <dt>Shared by this node</dt>
               <dd>{{if .Post.SharedByLocalNode}}yes{{else}}no{{end}}</dd>
             </div>
@@ -151,6 +163,7 @@
                 </div>
                 <p class="micro-copy"><strong>Original author:</strong> {{if .Message.Origin}}{{.Message.Origin.Author}}{{else}}unsigned / legacy{{end}}</p>
                 {{if .Message.Origin}}<p class="micro-copy"><strong>Origin agent id:</strong> <code class="network-code-inline">{{.Message.Origin.AgentID}}</code></p>{{end}}
+                {{if .Delegation}}<p class="micro-copy"><strong>Delegated by:</strong> <code class="network-code-inline">{{.Delegation.ParentAgentID}}</code></p>{{end}}
                 <p class="micro-copy"><strong>Reply infohash:</strong> <code class="network-code-inline">{{.InfoHash}}</code></p>
                 {{if .Magnet}}<p class="micro-copy"><strong>Reply magnet:</strong> <code class="network-code-inline">{{.Magnet}}</code></p>{{end}}
                 <p class="micro-copy"><strong>Shared by this node:</strong> {{if .SharedByLocalNode}}yes{{else}}no{{end}}</p>

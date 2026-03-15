@@ -30,6 +30,16 @@ type MessageOrigin struct {
 	Signature string `json:"signature"`
 }
 
+type DelegationInfo struct {
+	Delegated       bool
+	ParentAgentID   string
+	ParentKeyType   string
+	ParentPublicKey string
+	Scopes          []string
+	CreatedAt       string
+	ExpiresAt       string
+}
+
 type Bundle struct {
 	InfoHash          string
 	Magnet            string
@@ -40,6 +50,7 @@ type Bundle struct {
 	Body              string
 	CreatedAt         time.Time
 	SharedByLocalNode bool
+	Delegation        *DelegationInfo
 }
 
 type Post struct {
@@ -210,6 +221,10 @@ type HistoryManifestEntry struct {
 	OriginKeyType     string   `json:"origin_key_type,omitempty"`
 	OriginPublicKey   string   `json:"origin_public_key,omitempty"`
 	OriginSigned      bool     `json:"origin_signed,omitempty"`
+	Delegated         bool     `json:"delegated,omitempty"`
+	ParentAgentID     string   `json:"parent_agent_id,omitempty"`
+	ParentKeyType     string   `json:"parent_key_type,omitempty"`
+	ParentPublicKey   string   `json:"parent_public_key,omitempty"`
 	SharedByLocalNode bool     `json:"shared_by_local_node,omitempty"`
 }
 

@@ -1,6 +1,9 @@
 package aip2p
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestWriterPolicyDefaultCapabilityReadOnlyRequiresExplicitWriter(t *testing.T) {
 	t.Parallel()
@@ -151,5 +154,122 @@ func TestWriterPolicyRelayTrustRejectsBlockedPeersAndHosts(t *testing.T) {
 	}
 	if !policy.AcceptsRelay("12D3TrustedPeer", "trusted.example") {
 		t.Fatal("expected neutral relay to be accepted")
+	}
+}
+
+func TestWriterPolicyDelegatedChildInheritsParentReadWrite(t *testing.T) {
+	t.Parallel()
+
+	policy := WriterPolicy{
+		SyncMode:          WriterSyncModeTrustedWritersOnly,
+		DefaultCapability: WriterCapabilityReadOnly,
+		AgentCapabilities: map[string]WriterCapability{
+			"agent://writer/parent": WriterCapabilityReadWrite,
+		},
+	}
+	child := &MessageOrigin{
+		AgentID:   "agent://writer/child",
+		PublicKey: "child-key",
+	}
+	store := DelegationStore{
+		Delegations: []WriterDelegation{
+			{
+				ParentAgentID:   "agent://writer/parent",
+				ParentPublicKey: "parent-key",
+				ChildAgentID:    "agent://writer/child",
+				ChildPublicKey:  "child-key",
+				Scopes:          []string{"post"},
+				CreatedAt:       "2024-03-15T12:00:00Z",
+			},
+		},
+	}
+
+	decision := policy.OriginDecision(child, "post", store)
+	if decision.Capability != WriterCapabilityReadWrite {
+		t.Fatalf("capability = %q, want read_write", decision.Capability)
+	}
+	if decision.Delegation == nil || decision.Delegation.ParentAgentID != "agent://writer/parent" {
+		t.Fatal("expected parent delegation metadata to be attached")
+	}
+	if !policy.AcceptsOriginWithDelegation(child, "post", store) {
+		t.Fatal("expected delegated child to be accepted")
+	}
+}
+
+func TestWriterPolicyExplicitChildRestrictionOverridesParentDelegation(t *testing.T) {
+	t.Parallel()
+
+	policy := WriterPolicy{
+		SyncMode:          WriterSyncModeTrustedWritersOnly,
+		DefaultCapability: WriterCapabilityReadOnly,
+		AgentCapabilities: map[string]WriterCapability{
+			"agent://writer/parent": WriterCapabilityReadWrite,
+			"agent://writer/child":  WriterCapabilityReadOnly,
+		},
+	}
+	child := &MessageOrigin{
+		AgentID:   "agent://writer/child",
+		PublicKey: "child-key",
+	}
+	store := DelegationStore{
+		Delegations: []WriterDelegation{
+			{
+				ParentAgentID:   "agent://writer/parent",
+				ParentPublicKey: "parent-key",
+				ChildAgentID:    "agent://writer/child",
+				ChildPublicKey:  "child-key",
+				Scopes:          []string{"post"},
+				CreatedAt:       "2024-03-15T12:00:00Z",
+			},
+		},
+	}
+
+	if policy.AcceptsOriginWithDelegation(child, "post", store) {
+		t.Fatal("expected explicit child read_only to override parent delegation")
+	}
+}
+
+func TestWriterPolicyRevokedDelegationStopsGrantingWrite(t *testing.T) {
+	t.Parallel()
+
+	policy := WriterPolicy{
+		SyncMode:          WriterSyncModeTrustedWritersOnly,
+		DefaultCapability: WriterCapabilityReadOnly,
+		AgentCapabilities: map[string]WriterCapability{
+			"agent://writer/parent": WriterCapabilityReadWrite,
+		},
+	}
+	child := &MessageOrigin{
+		AgentID:   "agent://writer/child",
+		PublicKey: "child-key",
+	}
+	store := DelegationStore{
+		Delegations: []WriterDelegation{
+			{
+				ParentAgentID:   "agent://writer/parent",
+				ParentPublicKey: "parent-key",
+				ChildAgentID:    "agent://writer/child",
+				ChildPublicKey:  "child-key",
+				Scopes:          []string{"post"},
+				CreatedAt:       "2024-03-15T12:00:00Z",
+			},
+		},
+		Revocations: []WriterRevocation{
+			{
+				ParentAgentID:   "agent://writer/parent",
+				ParentPublicKey: "parent-key",
+				ChildAgentID:    "agent://writer/child",
+				ChildPublicKey:  "child-key",
+				CreatedAt:       "2024-03-15T12:30:00Z",
+			},
+		},
+	}
+
+	now := time.Date(2024, 3, 15, 13, 0, 0, 0, time.UTC)
+	if _, ok := store.ActiveDelegationFor(child.AgentID, child.PublicKey, "post", now); ok {
+		t.Fatal("expected revoked delegation to be inactive")
+	}
+	if policy.AcceptsOriginWithDelegation(child, "post", store) {
+		t.Fatal("expected revoked delegation to stop granting write access")
 	}
 }

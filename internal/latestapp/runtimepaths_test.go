@@ -26,6 +26,15 @@ func TestDefaultRuntimePathsFromHome(t *testing.T) {
 	if paths.StoreRoot != "/tmp/example-home/.aip2p-news/aip2p/.aip2p" {
 		t.Fatalf("store = %q", paths.StoreRoot)
 	}
+	if paths.IdentitiesRoot != "/tmp/example-home/.aip2p-news/identities" {
+		t.Fatalf("identities = %q", paths.IdentitiesRoot)
+	}
+	if paths.DelegationsRoot != "/tmp/example-home/.aip2p-news/delegations" {
+		t.Fatalf("delegations = %q", paths.DelegationsRoot)
+	}
+	if paths.RevocationsRoot != "/tmp/example-home/.aip2p-news/revocations" {
+		t.Fatalf("revocations = %q", paths.RevocationsRoot)
+	}
 	if paths.ArchiveRoot != "/tmp/example-home/.aip2p-news/archive" {
 		t.Fatalf("archive = %q", paths.ArchiveRoot)
 	}
@@ -61,6 +70,9 @@ func TestEnsureRuntimeLayoutCreatesDefaultConfigFiles(t *testing.T) {
 		filepath.Join(store, "data"),
 		filepath.Join(store, "torrents"),
 		archive,
+		filepath.Join(root, "identities"),
+		filepath.Join(root, "delegations"),
+		filepath.Join(root, "revocations"),
 		rules,
 		writerPolicy,
 		netPath,

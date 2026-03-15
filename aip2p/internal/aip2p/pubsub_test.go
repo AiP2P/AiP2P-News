@@ -69,16 +69,16 @@ func TestMatchesAnnouncement(t *testing.T) {
 		Tags:      []string{"breaking"},
 	}
 	policy := defaultWriterPolicy()
-	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"pc75"}}, policy) {
+	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"pc75"}}, policy, DelegationStore{}) {
 		t.Fatal("expected topic match")
 	}
-	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}}, policy) {
+	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}}, policy, DelegationStore{}) {
 		t.Fatal("expected reserved all topic match")
 	}
-	if !matchesAnnouncement(announcement, SyncSubscriptions{Channels: []string{"aip2p.news/world"}}, policy) {
+	if !matchesAnnouncement(announcement, SyncSubscriptions{Channels: []string{"aip2p.news/world"}}, policy, DelegationStore{}) {
 		t.Fatal("expected channel match")
 	}
-	if matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"markets"}}, policy) {
+	if matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"markets"}}, policy, DelegationStore{}) {
 		t.Fatal("unexpected topic match")
 	}
 }
@@ -93,10 +93,10 @@ func TestMatchesAnnouncementFiltersByMaxAgeDays(t *testing.T) {
 		Topics:    []string{"world", "pc75"},
 	}
 	policy := defaultWriterPolicy()
-	if matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxAgeDays: 1}, policy) {
+	if matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxAgeDays: 1}, policy, DelegationStore{}) {
 		t.Fatal("expected stale announcement to be filtered")
 	}
-	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxAgeDays: 3}, policy) {
+	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxAgeDays: 3}, policy, DelegationStore{}) {
 		t.Fatal("expected announcement within max age")
 	}
 }
@@ -109,10 +109,10 @@ func TestMatchesAnnouncementFiltersByMaxBundleMB(t *testing.T) {
 		Topics:    []string{"world"},
 	}
 	policy := defaultWriterPolicy()
-	if matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxBundleMB: 10}, policy) {
+	if matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxBundleMB: 10}, policy, DelegationStore{}) {
 		t.Fatal("expected oversized announcement to be filtered")
 	}
-	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxBundleMB: 20}, policy) {
+	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxBundleMB: 20}, policy, DelegationStore{}) {
 		t.Fatal("expected announcement within size limit")
 	}
 }

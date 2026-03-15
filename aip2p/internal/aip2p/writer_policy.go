@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type WriterCapability string
@@ -41,6 +42,12 @@ type WriterPolicy struct {
 	RelayDefaultTrust     RelayTrust                  `json:"relay_default_trust,omitempty"`
 	RelayPeerTrust        map[string]RelayTrust       `json:"relay_peer_trust,omitempty"`
 	RelayHostTrust        map[string]RelayTrust       `json:"relay_host_trust,omitempty"`
+}
+
+type WriterOriginDecision struct {
+	Capability        WriterCapability
+	Delegation        *WriterDelegation
+	ExplicitReadWrite bool
 }
 
 func LoadWriterPolicy(path string) (WriterPolicy, error) {
@@ -115,10 +122,18 @@ func (p WriterPolicy) Empty() bool {
 }
 
 func (p WriterPolicy) AllowsOrigin(origin *MessageOrigin) bool {
-	return p.CapabilityForOrigin(origin) == WriterCapabilityReadWrite
+	return p.AllowsOriginWithDelegation(origin, "", DelegationStore{})
 }
 
 func (p WriterPolicy) AcceptsOrigin(origin *MessageOrigin) bool {
+	return p.AcceptsOriginWithDelegation(origin, "", DelegationStore{})
+}
+
+func (p WriterPolicy) AllowsOriginWithDelegation(origin *MessageOrigin, scope string, store DelegationStore) bool {
+	return p.OriginDecision(origin, scope, store).Capability == WriterCapabilityReadWrite
+}
+
+func (p WriterPolicy) AcceptsOriginWithDelegation(origin *MessageOrigin, scope string, store DelegationStore) bool {
 	p.Normalize()
 	if origin == nil {
 		switch p.SyncMode {
@@ -129,8 +144,8 @@ func (p WriterPolicy) AcceptsOrigin(origin *MessageOrigin) bool {
 		}
 	}
 
-	capability := p.CapabilityForOrigin(origin)
-	if capability == WriterCapabilityBlocked {
+	decision := p.OriginDecision(origin, scope, store)
+	if decision.Capability == WriterCapabilityBlocked {
 		return false
 	}
 
@@ -140,53 +155,64 @@ func (p WriterPolicy) AcceptsOrigin(origin *MessageOrigin) bool {
 	case WriterSyncModeBlacklist:
 		return true
 	case WriterSyncModeWhitelist:
-		return p.isExplicitlyAllowed(origin)
+		return decision.ExplicitReadWrite
 	case WriterSyncModeTrustedWritersOnly:
-		return capability == WriterCapabilityReadWrite
+		return decision.Capability == WriterCapabilityReadWrite
 	case WriterSyncModeMixed:
 		fallthrough
 	default:
-		return capability == WriterCapabilityReadWrite
+		return decision.Capability == WriterCapabilityReadWrite
 	}
 }
 
 func (p WriterPolicy) CapabilityForOrigin(origin *MessageOrigin) WriterCapability {
+	return p.CapabilityForOriginWithDelegation(origin, "", DelegationStore{})
+}
+
+func (p WriterPolicy) CapabilityForOriginWithDelegation(origin *MessageOrigin, scope string, store DelegationStore) WriterCapability {
+	return p.OriginDecision(origin, scope, store).Capability
+}
+
+func (p WriterPolicy) OriginDecision(origin *MessageOrigin, scope string, store DelegationStore) WriterOriginDecision {
 	p.Normalize()
 	if origin == nil {
 		if !p.AllowUnsigned {
-			return WriterCapabilityBlocked
+			return WriterOriginDecision{Capability: WriterCapabilityBlocked}
 		}
 		if p.hasLegacyWhitelist() {
-			return WriterCapabilityReadOnly
+			return WriterOriginDecision{Capability: WriterCapabilityReadOnly}
 		}
-		return p.DefaultCapability
+		return WriterOriginDecision{Capability: p.DefaultCapability}
 	}
 
-	agentID := normalizeFoldKey(origin.AgentID)
-	publicKey := strings.ToLower(strings.TrimSpace(origin.PublicKey))
+	child := p.capabilityState(origin.AgentID, origin.PublicKey)
+	if child.Capability == WriterCapabilityBlocked {
+		return WriterOriginDecision{Capability: WriterCapabilityBlocked}
+	}
 
-	if agentID != "" && containsFold(p.BlockedAgentIDs, agentID) {
-		return WriterCapabilityBlocked
+	decision := WriterOriginDecision{
+		Capability:        child.Capability,
+		ExplicitReadWrite: child.ExplicitReadWrite,
 	}
-	if publicKey != "" && containsFold(p.BlockedPublicKeys, publicKey) {
-		return WriterCapabilityBlocked
-	}
-	if capability, ok := p.PublicKeyCapabilities[publicKey]; ok {
-		return capability
-	}
-	if capability, ok := p.AgentCapabilities[agentID]; ok {
-		return capability
-	}
-	if p.hasLegacyWhitelist() {
-		if agentID != "" && containsFold(p.AllowedAgentIDs, agentID) {
-			return WriterCapabilityReadWrite
+	scope = normalizeFoldKey(scope)
+	if delegation, ok := store.ActiveDelegationFor(strings.TrimSpace(origin.AgentID), strings.ToLower(strings.TrimSpace(origin.PublicKey)), scope, time.Time{}); ok {
+		parent := p.capabilityState(delegation.ParentAgentID, delegation.ParentPublicKey)
+		if parent.Capability == WriterCapabilityBlocked {
+			return WriterOriginDecision{
+				Capability:        WriterCapabilityBlocked,
+				Delegation:        delegation,
+				ExplicitReadWrite: false,
+			}
 		}
-		if publicKey != "" && containsFold(p.AllowedPublicKeys, publicKey) {
-			return WriterCapabilityReadWrite
+		decision.Delegation = delegation
+		if !child.ExplicitlyConfigured && capabilityRank(parent.Capability) > capabilityRank(decision.Capability) {
+			decision.Capability = parent.Capability
 		}
-		return WriterCapabilityReadOnly
+		if parent.ExplicitReadWrite {
+			decision.ExplicitReadWrite = true
+		}
 	}
-	return p.DefaultCapability
+	return decision
 }
 
 func (p WriterPolicy) RelayTrustFor(peerID, host string) RelayTrust {
@@ -237,6 +263,69 @@ func (p WriterPolicy) isExplicitlyAllowed(origin *MessageOrigin) bool {
 		return true
 	}
 	return false
+}
+
+type writerCapabilityState struct {
+	Capability           WriterCapability
+	ExplicitlyConfigured bool
+	ExplicitReadWrite    bool
+}
+
+func (p WriterPolicy) capabilityState(agentIDValue, publicKeyValue string) writerCapabilityState {
+	agentID := normalizeFoldKey(agentIDValue)
+	publicKey := strings.ToLower(strings.TrimSpace(publicKeyValue))
+
+	if agentID != "" && containsFold(p.BlockedAgentIDs, agentID) {
+		return writerCapabilityState{Capability: WriterCapabilityBlocked, ExplicitlyConfigured: true}
+	}
+	if publicKey != "" && containsFold(p.BlockedPublicKeys, publicKey) {
+		return writerCapabilityState{Capability: WriterCapabilityBlocked, ExplicitlyConfigured: true}
+	}
+	if capability, ok := p.PublicKeyCapabilities[publicKey]; ok {
+		return writerCapabilityState{
+			Capability:           capability,
+			ExplicitlyConfigured: true,
+			ExplicitReadWrite:    capability == WriterCapabilityReadWrite,
+		}
+	}
+	if capability, ok := p.AgentCapabilities[agentID]; ok {
+		return writerCapabilityState{
+			Capability:           capability,
+			ExplicitlyConfigured: true,
+			ExplicitReadWrite:    capability == WriterCapabilityReadWrite,
+		}
+	}
+	if p.hasLegacyWhitelist() {
+		if agentID != "" && containsFold(p.AllowedAgentIDs, agentID) {
+			return writerCapabilityState{
+				Capability:           WriterCapabilityReadWrite,
+				ExplicitlyConfigured: true,
+				ExplicitReadWrite:    true,
+			}
+		}
+		if publicKey != "" && containsFold(p.AllowedPublicKeys, publicKey) {
+			return writerCapabilityState{
+				Capability:           WriterCapabilityReadWrite,
+				ExplicitlyConfigured: true,
+				ExplicitReadWrite:    true,
+			}
+		}
+		return writerCapabilityState{Capability: WriterCapabilityReadOnly}
+	}
+	return writerCapabilityState{Capability: p.DefaultCapability}
+}
+
+func capabilityRank(capability WriterCapability) int {
+	switch capability {
+	case WriterCapabilityBlocked:
+		return 0
+	case WriterCapabilityReadOnly:
+		return 1
+	case WriterCapabilityReadWrite:
+		return 2
+	default:
+		return 0
+	}
 }
 
 func normalizeWriterSyncMode(value, fallback WriterSyncMode) WriterSyncMode {
