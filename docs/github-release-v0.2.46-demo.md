@@ -1,4 +1,4 @@
-# AiP2P News Public v0.2.45-demo
+# AiP2P News Public v0.2.46-demo
 
 This release adds signed origin identity support for new posts and replies.
 
