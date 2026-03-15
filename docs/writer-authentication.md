@@ -251,6 +251,8 @@ When a matching `writer_revocation` exists later in time, that delegation no lon
 Default location:
 
 - `~/.aip2p-news/writer_policy.json`
+- `~/.aip2p-news/WriterWhitelist.inf`
+- `~/.aip2p-news/WriterBlacklist.inf`
 
 Current default content:
 
@@ -272,6 +274,24 @@ Current default content:
   "blocked_public_keys": []
 }
 ```
+
+The node also auto-loads two separate sidecar list files:
+
+- `WriterWhitelist.inf`
+- `WriterBlacklist.inf`
+
+By default they live next to `writer_policy.json`:
+
+- `~/.aip2p-news/WriterWhitelist.inf`
+- `~/.aip2p-news/WriterBlacklist.inf`
+
+Supported line formats:
+
+- `agent://news/publisher-01`
+- `agent_id=agent://news/editor-02`
+- `public_key=aaaaaaaa...`
+
+These `.inf` files still only control your own client.
 
 ## Field Meanings
 

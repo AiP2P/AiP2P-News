@@ -174,13 +174,15 @@ func buildIndex(bundles []Bundle, project string) Index {
 		switch bundle.Message.Kind {
 		case "post":
 			post := Post{
-				Bundle:       bundle,
-				SourceName:   nestedString(bundle.Message.Extensions, "source", "name"),
-				SourceURL:    nestedString(bundle.Message.Extensions, "source", "url"),
-				Topics:       stringSlice(bundle.Message.Extensions["topics"]),
-				ChannelGroup: channelGroup(bundle.Message.Channel),
-				PostType:     stringValue(bundle.Message.Extensions["post_type"]),
-				Summary:      summarize(bundle.Body, 220),
+				Bundle:          bundle,
+				SourceName:      sourceGroupName(bundle.Message),
+				SourceSiteName:  nestedString(bundle.Message.Extensions, "source", "name"),
+				SourceURL:       nestedString(bundle.Message.Extensions, "source", "url"),
+				OriginPublicKey: originPublicKey(bundle.Message),
+				Topics:          stringSlice(bundle.Message.Extensions["topics"]),
+				ChannelGroup:    channelGroup(bundle.Message.Channel),
+				PostType:        stringValue(bundle.Message.Extensions["post_type"]),
+				Summary:         summarize(bundle.Body, 220),
 			}
 			if eventTime, ok := timeFromMap(bundle.Message.Extensions, "event_time"); ok {
 				post.EventTime = &eventTime
@@ -524,6 +526,8 @@ func matchesQuery(post Post, query string) bool {
 		post.Body,
 		post.Summary,
 		post.SourceName,
+		post.SourceSiteName,
+		post.OriginPublicKey,
 		post.Message.Author,
 		post.ChannelGroup,
 		post.PostType,
@@ -547,6 +551,31 @@ func summarize(body string, max int) string {
 		return body
 	}
 	return body[:max-3] + "..."
+}
+
+func sourceGroupName(msg Message) string {
+	if value := originPublicKey(msg); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(nestedString(msg.Extensions, "source", "name")); value != "" {
+		return value
+	}
+	if msg.Origin != nil {
+		if value := strings.TrimSpace(msg.Origin.AgentID); value != "" {
+			return value
+		}
+		if value := strings.TrimSpace(msg.Origin.Author); value != "" {
+			return value
+		}
+	}
+	return strings.TrimSpace(msg.Author)
+}
+
+func originPublicKey(msg Message) string {
+	if msg.Origin == nil {
+		return ""
+	}
+	return strings.TrimSpace(msg.Origin.PublicKey)
 }
 
 func containsFold(items []string, target string) bool {

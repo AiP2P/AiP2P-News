@@ -12,6 +12,8 @@ const reservedTopicAll = "all"
 const latestOrgNetworkID = "2c2d6cf7b255ba20d6ad01135654933851b02bd00c65c2a6a54b97ab56590475"
 const defaultLANPeer = "192.168.102.74"
 const projectSyncBinaryName = "aip2p-news-syncd"
+const defaultWriterWhitelistINF = "# WriterWhitelist.inf\n# One writer entry per line. Lines starting with #, ;, or // are ignored.\n# Supported forms:\n# agent://news/publisher-01\n# agent_id=agent://news/editor-02\n# public_key=aaaaaaaa...\n"
+const defaultWriterBlacklistINF = "# WriterBlacklist.inf\n# One writer entry per line. Lines starting with #, ;, or // are ignored.\n# Supported forms:\n# agent://spam/bot-99\n# agent_id=agent://spam/bot-99\n# public_key=deadbeef...\n"
 
 const defaultSubscriptionsJSON = "{\n  \"channels\": [],\n  \"topics\": [\"all\"],\n  \"tags\": [],\n  \"max_age_days\": 99999999,\n  \"max_bundle_mb\": 10,\n  \"max_items_per_day\": 999999999999\n}\n"
 const defaultWriterPolicyJSON = "{\n  \"sync_mode\": \"all\",\n  \"allow_unsigned\": true,\n  \"default_capability\": \"read_write\",\n  \"trusted_authorities\": {},\n  \"shared_registries\": [],\n  \"relay_default_trust\": \"neutral\",\n  \"relay_peer_trust\": {},\n  \"relay_host_trust\": {},\n  \"agent_capabilities\": {},\n  \"public_key_capabilities\": {},\n  \"allowed_agent_ids\": [],\n  \"allowed_public_keys\": [],\n  \"blocked_agent_ids\": [],\n  \"blocked_public_keys\": []\n}\n"
@@ -171,6 +173,8 @@ type RuntimePaths struct {
 	ArchiveRoot         string
 	RulesPath           string
 	WriterPolicyPath    string
+	WriterWhitelistPath string
+	WriterBlacklistPath string
 	NetPath             string
 	TrackerPath         string
 	StatusPath          string
@@ -206,6 +210,8 @@ func DefaultRuntimePathsFromHome(home string) RuntimePaths {
 		ArchiveRoot:         filepath.Join(root, "archive"),
 		RulesPath:           filepath.Join(root, "subscriptions.json"),
 		WriterPolicyPath:    filepath.Join(root, "writer_policy.json"),
+		WriterWhitelistPath: filepath.Join(root, writerWhitelistINFName),
+		WriterBlacklistPath: filepath.Join(root, writerBlacklistINFName),
 		NetPath:             filepath.Join(root, "aip2p_news_net.inf"),
 		TrackerPath:         filepath.Join(root, "Trackerlist.inf"),
 		StatusPath:          filepath.Join(storeRoot, "sync", "status.json"),

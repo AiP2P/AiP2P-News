@@ -56,7 +56,9 @@ type Bundle struct {
 type Post struct {
 	Bundle
 	SourceName           string
+	SourceSiteName       string
 	SourceURL            string
+	OriginPublicKey      string
 	EventTime            *time.Time
 	Topics               []string
 	ChannelGroup         string

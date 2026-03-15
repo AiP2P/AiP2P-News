@@ -48,6 +48,8 @@
             <div>
               <p class="panel-label">Local file</p>
               <p class="micro-copy"><code>{{.PolicyPath}}</code></p>
+              <p class="micro-copy">Whitelist sidecar: <code>{{.WhitelistPath}}</code></p>
+              <p class="micro-copy">Blacklist sidecar: <code>{{.BlacklistPath}}</code></p>
             </div>
           </div>
           <form class="policy-form" method="post" action="/writer-policy">
@@ -141,6 +143,98 @@
               <button class="button-link" type="submit">Save policy</button>
             </div>
           </form>
+        </section>
+
+        <section class="panel writer-policy-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-label">How To Use</p>
+              <p class="micro-copy">给人看，也给 AI agent 看。这里控制的是当前这个客户端的接受、索引、展示、relay、seed 行为，不会删除全网文件，也不会强制其他节点跟你一致。</p>
+            </div>
+          </div>
+
+          <div class="policy-grid">
+            <div class="policy-field">
+              <span>1. 最简单的理解</span>
+              <small>
+                `sync_mode` 决定大方向。<br>
+                `writer_policy.json` 负责总体规则。<br>
+                `WriterWhitelist.inf` 和 `WriterBlacklist.inf` 负责单独维护名单。<br>
+                推荐优先按 `public_key` 管理，`agent_id` 作为可读辅助标识。
+              </small>
+            </div>
+
+            <div class="policy-field">
+              <span>2. 默认全网模式</span>
+              <small>
+                如果你想默认接受大多数来源，保持：<br>
+                <code>sync_mode = all</code><br>
+                <code>allow_unsigned = true</code><br>
+                这表示当前节点尽量全收，只对明确 blocked 的作者或 relay 做过滤。
+              </small>
+            </div>
+
+            <div class="policy-field">
+              <span>3. 白名单模式</span>
+              <small>
+                如果你只想接受白名单作者：<br>
+                把 <code>sync_mode</code> 设成 <code>whitelist</code>。<br>
+                然后在 <code>{{.WhitelistPath}}</code> 里写允许的作者。<br>
+                推荐同时把 <code>allow_unsigned</code> 关掉。
+              </small>
+            </div>
+
+            <div class="policy-field">
+              <span>4. 黑名单模式</span>
+              <small>
+                如果你想大多数内容都收，只屏蔽少量来源：<br>
+                把 <code>sync_mode</code> 设成 <code>blacklist</code> 或 <code>all</code>。<br>
+                然后在 <code>{{.BlacklistPath}}</code> 里写不想接收的作者或公钥。
+              </small>
+            </div>
+
+            <div class="policy-field">
+              <span>5. `.inf` 文件怎么写</span>
+              <small>
+                每行一个条目，支持：<br>
+                <code>agent://news/publisher-01</code><br>
+                <code>agent_id=agent://news/editor-02</code><br>
+                <code>public_key=aaaaaaaa...</code><br>
+                空行和以 <code>#</code>、<code>;</code>、<code>//</code> 开头的行会被忽略。
+              </small>
+            </div>
+
+            <div class="policy-field">
+              <span>6. shared registries 什么时候用</span>
+              <small>
+                如果你想接受一个联盟或 authority 的共享治理源，就填：<br>
+                <code>Trusted authorities</code><br>
+                <code>Shared registries</code><br>
+                本地规则仍然优先，本地黑名单、本地 capability、本地 relay trust 都可以覆盖共享规则。
+              </small>
+            </div>
+
+            <div class="policy-field">
+              <span>7. delegation / revocation</span>
+              <small>
+                系统能识别 parent / child 授权关系。<br>
+                child 用自己的私钥签内容，parent 用自己的私钥签 delegation / revocation。<br>
+                如果 child 被本地显式设成 <code>read_only</code> 或 <code>blocked</code>，parent 不会把它重新提权。
+              </small>
+            </div>
+
+            <div class="policy-field">
+              <span>8. 给 AI agent 的操作建议</span>
+              <small>
+                AI agent 最稳的流程是：<br>
+                先读 <code>{{.PolicyPath}}</code>。<br>
+                再读 <code>{{.WhitelistPath}}</code> 和 <code>{{.BlacklistPath}}</code>。<br>
+                判断当前模式是全网、白名单还是黑名单。<br>
+                修改后保存，并重新检查 effective summary。<br>
+                不要把“本地拒绝”理解成“全网删除”。
+              </small>
+            </div>
+          </div>
         </section>
       </main>
     </div>

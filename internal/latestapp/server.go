@@ -93,6 +93,8 @@ type HomePageData struct {
 	Posts           []Post
 	Now             time.Time
 	ListenAddr      string
+	AgentView       bool
+	ShowNetworkWarn bool
 	Options         FeedOptions
 	PageNav         []NavItem
 	TopicFacets     []FeedFacet
@@ -246,6 +248,26 @@ func New(storeRoot, project, version, archiveRoot, rulesPath, writerPath, netPat
 				}
 				return strings.TrimRight(strings.TrimRight(strconv.FormatFloat(*value, 'f', 2, 64), "0"), ".")
 			},
+			"compactIdentity": func(value string) string {
+				value = strings.TrimSpace(value)
+				if len(value) <= 24 {
+					return value
+				}
+				return value[:12] + "..." + value[len(value)-10:]
+			},
+			"displayArchivePath": func(value string) string {
+				value = filepath.ToSlash(strings.TrimSpace(value))
+				if value == "" {
+					return ""
+				}
+				if idx := strings.Index(value, "/archive/"); idx >= 0 {
+					return strings.TrimPrefix(value[idx+1:], "/")
+				}
+				if strings.HasPrefix(value, "archive/") {
+					return value
+				}
+				return filepath.Base(value)
+			},
 			"join":          strings.Join,
 			"lower":         strings.ToLower,
 			"reactionLabel": reactionLabel,
@@ -322,6 +344,12 @@ func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, writerPath, netPath 
 			return err
 		}
 		if err := ensureFileIfMissing(writerPath, []byte(defaultWriterPolicyJSON)); err != nil {
+			return err
+		}
+		if err := ensureFileIfMissing(filepath.Join(filepath.Dir(writerPath), writerWhitelistINFName), []byte(defaultWriterWhitelistINF)); err != nil {
+			return err
+		}
+		if err := ensureFileIfMissing(filepath.Join(filepath.Dir(writerPath), writerBlacklistINFName), []byte(defaultWriterBlacklistINF)); err != nil {
 			return err
 		}
 	}
@@ -443,12 +471,25 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	opts := readFeedOptions(r)
 	allPosts := index.FilterPosts(opts)
 	posts, pagination := paginatePosts(allPosts, opts, "/")
+	showNetworkWarn := shouldShowNetworkWarning(r)
+	if showNetworkWarn {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "aip2p_news_network_warning_seen",
+			Value:    "1",
+			Path:     "/",
+			MaxAge:   180 * 24 * 60 * 60,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
 	data := HomePageData{
 		Project:         displayProjectName(a.project),
 		Version:         a.version,
 		Posts:           posts,
 		Now:             time.Now(),
 		ListenAddr:      a.httpListenAddr(),
+		AgentView:       isAgentViewer(r),
+		ShowNetworkWarn: showNetworkWarn,
 		Options:         opts,
 		PageNav:         buildPageNav("/"),
 		TopicFacets:     buildFeedFacets(index.TopicStats, opts, "/", "topic"),
@@ -466,6 +507,59 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	if err := a.templates.ExecuteTemplate(w, "home.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func shouldShowNetworkWarning(r *http.Request) bool {
+	if r == nil {
+		return true
+	}
+	cookie, err := r.Cookie("aip2p_news_network_warning_seen")
+	if err != nil {
+		return true
+	}
+	return strings.TrimSpace(cookie.Value) == ""
+}
+
+func isAgentViewer(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	if value := strings.TrimSpace(r.URL.Query().Get("agent")); value != "" {
+		switch strings.ToLower(value) {
+		case "1", "true", "yes", "on":
+			return true
+		case "0", "false", "no", "off":
+			return false
+		}
+	}
+	ua := strings.ToLower(strings.TrimSpace(r.UserAgent()))
+	if ua == "" {
+		return false
+	}
+	if strings.Contains(ua, "mozilla/") && !strings.Contains(ua, "bot") && !strings.Contains(ua, "agent") {
+		return false
+	}
+	markers := []string{
+		"agent",
+		"bot",
+		"crawler",
+		"python",
+		"curl",
+		"wget",
+		"httpie",
+		"go-http-client",
+		"openai",
+		"anthropic",
+		"claude",
+		"gpt",
+		"llm",
+	}
+	for _, marker := range markers {
+		if strings.Contains(ua, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) handlePost(w http.ResponseWriter, r *http.Request) {
@@ -2191,7 +2285,9 @@ func apiPost(post Post, withBody bool) map[string]any {
 		"channel":              post.Message.Channel,
 		"channel_group":        post.ChannelGroup,
 		"source_name":          post.SourceName,
+		"source_site_name":     post.SourceSiteName,
 		"source_url":           post.SourceURL,
+		"origin_public_key":    post.OriginPublicKey,
 		"topics":               post.Topics,
 		"post_type":            post.PostType,
 		"summary":              post.Summary,

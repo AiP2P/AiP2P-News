@@ -44,6 +44,12 @@ func TestDefaultRuntimePathsFromHome(t *testing.T) {
 	if paths.WriterPolicyPath != "/tmp/example-home/.aip2p-news/writer_policy.json" {
 		t.Fatalf("writer policy = %q", paths.WriterPolicyPath)
 	}
+	if paths.WriterWhitelistPath != "/tmp/example-home/.aip2p-news/WriterWhitelist.inf" {
+		t.Fatalf("writer whitelist = %q", paths.WriterWhitelistPath)
+	}
+	if paths.WriterBlacklistPath != "/tmp/example-home/.aip2p-news/WriterBlacklist.inf" {
+		t.Fatalf("writer blacklist = %q", paths.WriterBlacklistPath)
+	}
 	if paths.NetPath != "/tmp/example-home/.aip2p-news/aip2p_news_net.inf" {
 		t.Fatalf("net = %q", paths.NetPath)
 	}
@@ -75,6 +81,8 @@ func TestEnsureRuntimeLayoutCreatesDefaultConfigFiles(t *testing.T) {
 		filepath.Join(root, "revocations"),
 		rules,
 		writerPolicy,
+		filepath.Join(root, "WriterWhitelist.inf"),
+		filepath.Join(root, "WriterBlacklist.inf"),
 		netPath,
 	} {
 		if _, err := os.Stat(path); err != nil {
@@ -94,6 +102,20 @@ func TestEnsureRuntimeLayoutCreatesDefaultConfigFiles(t *testing.T) {
 	}
 	if string(writerData) != defaultWriterPolicyJSON {
 		t.Fatalf("unexpected writer policy content: %q", string(writerData))
+	}
+	whitelistData, err := os.ReadFile(filepath.Join(root, "WriterWhitelist.inf"))
+	if err != nil {
+		t.Fatalf("ReadFile(WriterWhitelist.inf) error = %v", err)
+	}
+	if string(whitelistData) != defaultWriterWhitelistINF {
+		t.Fatalf("unexpected whitelist content: %q", string(whitelistData))
+	}
+	blacklistData, err := os.ReadFile(filepath.Join(root, "WriterBlacklist.inf"))
+	if err != nil {
+		t.Fatalf("ReadFile(WriterBlacklist.inf) error = %v", err)
+	}
+	if string(blacklistData) != defaultWriterBlacklistINF {
+		t.Fatalf("unexpected blacklist content: %q", string(blacklistData))
 	}
 	netData, err := os.ReadFile(netPath)
 	if err != nil {

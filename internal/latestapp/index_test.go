@@ -12,6 +12,7 @@ func TestFilterPostsSupportsQueryAndSort(t *testing.T) {
 
 	truthA := 0.8
 	truthB := 0.5
+	const pubKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	index := Index{
 		Posts: []Post{
 			{
@@ -25,7 +26,9 @@ func TestFilterPostsSupportsQueryAndSort(t *testing.T) {
 					Body: "Energy markets moved higher.",
 				},
 				ChannelGroup:      "world",
-				SourceName:        "BBC News",
+				SourceName:        pubKey,
+				SourceSiteName:    "BBC News",
+				OriginPublicKey:   pubKey,
 				Topics:            []string{"energy", "world"},
 				TruthScoreAverage: &truthA,
 			},
@@ -41,6 +44,7 @@ func TestFilterPostsSupportsQueryAndSort(t *testing.T) {
 				},
 				ChannelGroup:      "markets",
 				SourceName:        "CNBC",
+				SourceSiteName:    "CNBC",
 				Topics:            []string{"technology"},
 				TruthScoreAverage: &truthB,
 			},
@@ -57,6 +61,56 @@ func TestFilterPostsSupportsQueryAndSort(t *testing.T) {
 	}
 	if got[0].InfoHash != "a" {
 		t.Fatalf("infohash = %s, want a", got[0].InfoHash)
+	}
+}
+
+func TestBuildIndexPrefersOriginPublicKeyForSourceGrouping(t *testing.T) {
+	t.Parallel()
+
+	const pubKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	bundles := []Bundle{
+		{
+			InfoHash:  "post-1",
+			CreatedAt: time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC),
+			Body:      "Energy markets moved higher.",
+			Message: Message{
+				Kind:      "post",
+				Title:     "Oil rises in Europe",
+				Author:    "agent://collector/a",
+				Channel:   "aip2p.news/world",
+				CreatedAt: "2026-03-12T10:00:00Z",
+				Origin: &MessageOrigin{
+					Author:    "writer://world/a",
+					AgentID:   "agent://world/a",
+					PublicKey: pubKey,
+				},
+				Extensions: map[string]any{
+					"project": "aip2p.news",
+					"source": map[string]any{
+						"name": "BBC News",
+						"url":  "https://example.com/oil",
+					},
+				},
+			},
+		},
+	}
+
+	index := buildIndex(bundles, "aip2p.news")
+	if len(index.Posts) != 1 {
+		t.Fatalf("posts len = %d, want 1", len(index.Posts))
+	}
+	post := index.Posts[0]
+	if post.SourceName != pubKey {
+		t.Fatalf("source group = %q, want %q", post.SourceName, pubKey)
+	}
+	if post.SourceSiteName != "BBC News" {
+		t.Fatalf("source site = %q, want BBC News", post.SourceSiteName)
+	}
+	if post.OriginPublicKey != pubKey {
+		t.Fatalf("origin public key = %q, want %q", post.OriginPublicKey, pubKey)
+	}
+	if len(index.SourceStats) != 1 || index.SourceStats[0].Name != pubKey {
+		t.Fatalf("source stats = %+v, want one public-key group", index.SourceStats)
 	}
 }
 
@@ -83,17 +137,18 @@ func TestFilterPostsSupportsWindow(t *testing.T) {
 func TestRelatedPosts(t *testing.T) {
 	t.Parallel()
 
+	const pubKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	index := Index{
 		Posts: []Post{
 			{
 				Bundle:       Bundle{InfoHash: "base", CreatedAt: time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC)},
-				SourceName:   "BBC News",
+				SourceName:   pubKey,
 				ChannelGroup: "world",
 				Topics:       []string{"energy", "world"},
 			},
 			{
 				Bundle:       Bundle{InfoHash: "rel1", CreatedAt: time.Date(2026, 3, 12, 11, 0, 0, 0, time.UTC)},
-				SourceName:   "BBC News",
+				SourceName:   pubKey,
 				ChannelGroup: "world",
 				Topics:       []string{"energy"},
 			},

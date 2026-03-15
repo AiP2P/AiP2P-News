@@ -1,10 +1,12 @@
 package latestapp
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -44,6 +46,11 @@ type WriterPolicy struct {
 	RelayHostTrust        map[string]RelayTrust       `json:"relay_host_trust,omitempty"`
 }
 
+const (
+	writerWhitelistINFName = "WriterWhitelist.inf"
+	writerBlacklistINFName = "WriterBlacklist.inf"
+)
+
 type WriterOriginDecision struct {
 	Capability        WriterCapability
 	Delegation        *WriterDelegation
@@ -58,7 +65,11 @@ func LoadWriterPolicy(path string) (WriterPolicy, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return defaultWriterPolicy(), nil
+			policy := defaultWriterPolicy()
+			if err := policy.loadINFLists(path); err != nil {
+				return WriterPolicy{}, err
+			}
+			return policy, nil
 		}
 		return WriterPolicy{}, err
 	}
@@ -68,6 +79,9 @@ func LoadWriterPolicy(path string) (WriterPolicy, error) {
 	}
 	policy.normalize()
 	if err := policy.loadSharedRegistries(); err != nil {
+		return WriterPolicy{}, err
+	}
+	if err := policy.loadINFLists(path); err != nil {
 		return WriterPolicy{}, err
 	}
 	return policy, nil
@@ -440,6 +454,88 @@ func (p *WriterPolicy) loadSharedRegistries() error {
 	merged.normalize()
 	*p = merged
 	return nil
+}
+
+func (p *WriterPolicy) loadINFLists(policyPath string) error {
+	if p == nil {
+		return nil
+	}
+	root := strings.TrimSpace(filepath.Dir(strings.TrimSpace(policyPath)))
+	if root == "" || root == "." {
+		return nil
+	}
+	allowedAgents, allowedKeys, err := loadWriterINFList(filepath.Join(root, writerWhitelistINFName))
+	if err != nil {
+		return err
+	}
+	blockedAgents, blockedKeys, err := loadWriterINFList(filepath.Join(root, writerBlacklistINFName))
+	if err != nil {
+		return err
+	}
+	p.AllowedAgentIDs = append(append([]string(nil), p.AllowedAgentIDs...), allowedAgents...)
+	p.AllowedPublicKeys = append(append([]string(nil), p.AllowedPublicKeys...), allowedKeys...)
+	p.BlockedAgentIDs = append(append([]string(nil), p.BlockedAgentIDs...), blockedAgents...)
+	p.BlockedPublicKeys = append(append([]string(nil), p.BlockedPublicKeys...), blockedKeys...)
+	p.normalize()
+	return nil
+}
+
+func loadWriterINFList(path string) (agentIDs, publicKeys []string, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil, nil
+		}
+		return nil, nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") || strings.HasPrefix(line, "//") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if ok {
+			key = normalizeFoldKey(key)
+			value = strings.TrimSpace(value)
+			switch key {
+			case "agent", "agent_id", "agentid":
+				if value != "" {
+					agentIDs = append(agentIDs, value)
+				}
+				continue
+			case "public_key", "publickey", "pubkey", "key":
+				if value != "" {
+					publicKeys = append(publicKeys, value)
+				}
+				continue
+			}
+		}
+		if strings.Contains(line, "agent://") || !looksLikeHex(line) {
+			agentIDs = append(agentIDs, line)
+			continue
+		}
+		publicKeys = append(publicKeys, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, err
+	}
+	return uniqueFold(agentIDs), normalizeHexList(publicKeys), nil
+}
+
+func looksLikeHex(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func ApplyWriterPolicy(index Index, project string, policy WriterPolicy) Index {

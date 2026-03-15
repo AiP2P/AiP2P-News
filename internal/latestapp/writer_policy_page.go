@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,8 @@ type WriterPolicyPageData struct {
 	PageNav                   []NavItem
 	NodeStatus                NodeStatus
 	PolicyPath                string
+	WhitelistPath             string
+	BlacklistPath             string
 	Saved                     bool
 	Error                     string
 	SyncMode                  string
@@ -88,6 +91,8 @@ func (a *App) renderWriterPolicyPage(w http.ResponseWriter, r *http.Request, for
 		PageNav:                   buildPageNav("/writer-policy"),
 		NodeStatus:                NodeStatus{Summary: "policy", SummaryTone: "good"},
 		PolicyPath:                a.writerPath,
+		WhitelistPath:             filepath.Join(filepath.Dir(a.writerPath), writerWhitelistINFName),
+		BlacklistPath:             filepath.Join(filepath.Dir(a.writerPath), writerBlacklistINFName),
 		Saved:                     saved,
 		Error:                     formErr,
 		SyncMode:                  string(policy.SyncMode),

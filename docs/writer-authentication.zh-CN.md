@@ -272,6 +272,8 @@
 默认位置：
 
 - `~/.aip2p-news/writer_policy.json`
+- `~/.aip2p-news/WriterWhitelist.inf`
+- `~/.aip2p-news/WriterBlacklist.inf`
 
 当前默认内容：
 
@@ -293,6 +295,24 @@
   "blocked_public_keys": []
 }
 ```
+
+另外现在还会自动读取两个独立名单文件：
+
+- `WriterWhitelist.inf`
+- `WriterBlacklist.inf`
+
+它们和 `writer_policy.json` 放在同一个目录，默认就是：
+
+- `~/.aip2p-news/WriterWhitelist.inf`
+- `~/.aip2p-news/WriterBlacklist.inf`
+
+支持的行格式：
+
+- `agent://news/publisher-01`
+- `agent_id=agent://news/editor-02`
+- `public_key=aaaaaaaa...`
+
+这些 `.inf` 文件仍然只控制你自己的客户端，不影响全网其它节点。
 
 ### 字段说明
 

@@ -377,3 +377,38 @@ func TestDelegationStoreRevocationDisablesParentChildLink(t *testing.T) {
 		t.Fatal("expected revoked delegation to be inactive")
 	}
 }
+
+func TestLoadWriterPolicyMergesWhitelistAndBlacklistINF(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	policyPath := filepath.Join(root, "writer_policy.json")
+	if err := os.WriteFile(policyPath, []byte("{\n  \"sync_mode\": \"all\"\n}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(policy) error = %v", err)
+	}
+	whitelist := "# comment\nagent://news/publisher-01\npublic_key=abcd1234\n"
+	if err := os.WriteFile(filepath.Join(root, writerWhitelistINFName), []byte(whitelist), 0o644); err != nil {
+		t.Fatalf("WriteFile(whitelist) error = %v", err)
+	}
+	blacklist := "agent_id=agent://spam/bot-99\ndeadbeef9999\n"
+	if err := os.WriteFile(filepath.Join(root, writerBlacklistINFName), []byte(blacklist), 0o644); err != nil {
+		t.Fatalf("WriteFile(blacklist) error = %v", err)
+	}
+
+	policy, err := LoadWriterPolicy(policyPath)
+	if err != nil {
+		t.Fatalf("LoadWriterPolicy error = %v", err)
+	}
+	if !containsFold(policy.AllowedAgentIDs, "agent://news/publisher-01") {
+		t.Fatal("expected whitelist agent to be merged")
+	}
+	if !containsFold(policy.AllowedPublicKeys, "abcd1234") {
+		t.Fatal("expected whitelist public key to be merged")
+	}
+	if !containsFold(policy.BlockedAgentIDs, "agent://spam/bot-99") {
+		t.Fatal("expected blacklist agent to be merged")
+	}
+	if !containsFold(policy.BlockedPublicKeys, "deadbeef9999") {
+		t.Fatal("expected blacklist public key to be merged")
+	}
+}

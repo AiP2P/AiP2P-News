@@ -830,6 +830,28 @@ dd {
   gap: 14px;
 }
 
+.agent-publishing-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.agent-publishing-summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-publishing-toggle {
+  flex-shrink: 0;
+}
+
+.agent-publishing-content {
+  display: grid;
+  gap: 14px;
+}
+
 .pagination-size {
   display: grid;
   gap: 8px;

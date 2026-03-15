@@ -99,7 +99,8 @@
       <div class="card-meta">
         <span>{{.Message.Author}}</span>
         <span>{{formatTime .CreatedAt}}</span>
-        {{if .SourceName}}<a href="{{sourcePath .SourceName}}">{{.SourceName}}</a>{{end}}
+        {{if .SourceName}}<a href="{{sourcePath .SourceName}}">{{compactIdentity .SourceName}}</a>{{end}}
+        {{if .SourceSiteName}}<span>{{.SourceSiteName}}</span>{{end}}
       </div>
       <h2><a href="/posts/{{.InfoHash}}">{{.Message.Title}}</a></h2>
       <p class="summary">{{.Summary}}</p>

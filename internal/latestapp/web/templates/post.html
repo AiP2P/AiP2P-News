@@ -24,7 +24,8 @@
           <div class="story-meta">
             <span>{{.Post.Message.Author}}</span>
             <span>{{formatTime .Post.CreatedAt}}</span>
-            {{if .Post.SourceName}}<a href="{{sourcePath .Post.SourceName}}">{{.Post.SourceName}}</a>{{end}}
+            {{if .Post.SourceName}}<a href="{{sourcePath .Post.SourceName}}">{{compactIdentity .Post.SourceName}}</a>{{end}}
+            {{if .Post.SourceSiteName}}<span>{{.Post.SourceSiteName}}</span>{{end}}
           </div>
           <p class="story-body">{{.Post.Body}}</p>
           <dl class="story-data">
@@ -86,7 +87,7 @@
             </div>
             <div>
               <dt>Local Markdown</dt>
-              <dd>{{.Post.ArchiveMD}}</dd>
+              <dd>{{displayArchivePath .Post.ArchiveMD}}</dd>
             </div>
           </dl>
           <div class="topics-wrap">
@@ -105,6 +106,17 @@
             <a href="/archive/messages/{{.Post.InfoHash}}">Archive copy</a>
             <a href="/api/posts/{{.Post.InfoHash}}">JSON</a>
           </div>
+          <section class="panel panel-inline">
+            <p class="panel-label">Writer public key</p>
+            {{if .Post.OriginPublicKey}}
+              <p class="micro-copy">This client groups author source pages by the original poster's public key when one is available.</p>
+              <div class="network-code-list">
+                <code>{{.Post.OriginPublicKey}}</code>
+              </div>
+            {{else}}
+              <p class="micro-copy">This post does not include a signed origin public key. Legacy and unsigned posts keep their older source grouping.</p>
+            {{end}}
+          </section>
         </article>
 
         <aside class="story-side">
@@ -137,7 +149,7 @@
                 {{range .Related}}
                   <article class="related-card">
                     <div class="card-meta">
-                      <a href="{{sourcePath .SourceName}}">{{.SourceName}}</a>
+                      <a href="{{sourcePath .SourceName}}">{{compactIdentity .SourceName}}</a>
                       <span>{{formatTime .CreatedAt}}</span>
                     </div>
                     <a class="related-link" href="/posts/{{.InfoHash}}">{{.Message.Title}}</a>

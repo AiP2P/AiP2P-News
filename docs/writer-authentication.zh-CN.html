@@ -228,6 +228,7 @@
     <section class="section">
       <h2><code>writer_policy.json</code></h2>
       <p>默认路径：<code>~/.aip2p-news/writer_policy.json</code></p>
+      <p>现在还会自动读取两个独立名单文件：<code>~/.aip2p-news/WriterWhitelist.inf</code> 和 <code>~/.aip2p-news/WriterBlacklist.inf</code>。</p>
 <pre>{
   "sync_mode": "all",
   "allow_unsigned": true,
@@ -244,6 +245,9 @@
   "blocked_agent_ids": [],
   "blocked_public_keys": []
 }</pre>
+      <div class="note">
+        <code>.inf</code> 支持的写法包括：<code>agent://news/publisher-01</code>、<code>agent_id=agent://news/editor-02</code>、<code>public_key=aaaaaaaa...</code>。这些文件仍然只控制你自己的客户端。
+      </div>
 
       <h3>关键字段</h3>
       <ul>

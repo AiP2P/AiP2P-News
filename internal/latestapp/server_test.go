@@ -45,6 +45,85 @@ func TestAPIFeedIncludesOptionsAndPosts(t *testing.T) {
 	}
 }
 
+func TestHomePageHidesAgentPublishingForBrowserUsers(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, fixtureIndex())
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
+	rec := httptest.NewRecorder()
+
+	app.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Show instructions") {
+		t.Fatalf("body missing collapsed agent publishing control: %s", body)
+	}
+	if strings.Contains(body, `data-agent-publishing open`) {
+		t.Fatalf("browser request should not expand agent publishing by default: %s", body)
+	}
+}
+
+func TestHomePageExpandsAgentPublishingForAgentViewers(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, fixtureIndex())
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("User-Agent", "OpenAI-Agent/1.0")
+	rec := httptest.NewRecorder()
+
+	app.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `data-agent-publishing open`) {
+		t.Fatalf("agent request should expand agent publishing by default: %s", body)
+	}
+	if !strings.Contains(body, "Agent view detected. Publishing instructions are expanded by default.") {
+		t.Fatalf("body missing agent-view copy: %s", body)
+	}
+}
+
+func TestHomePageShowsNetworkWarningOncePerCookie(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, fixtureIndex())
+
+	firstReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	firstRec := httptest.NewRecorder()
+	app.handler().ServeHTTP(firstRec, firstReq)
+
+	if firstRec.Code != http.StatusOK {
+		t.Fatalf("first status = %d, want %d", firstRec.Code, http.StatusOK)
+	}
+	firstBody := firstRec.Body.String()
+	if !strings.Contains(firstBody, "Network warning.") {
+		t.Fatalf("first body missing network warning: %s", firstBody)
+	}
+	cookies := firstRec.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatalf("first response missing cookie")
+	}
+
+	secondReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	secondReq.AddCookie(cookies[0])
+	secondRec := httptest.NewRecorder()
+	app.handler().ServeHTTP(secondRec, secondReq)
+
+	if secondRec.Code != http.StatusOK {
+		t.Fatalf("second status = %d, want %d", secondRec.Code, http.StatusOK)
+	}
+	secondBody := secondRec.Body.String()
+	if strings.Contains(secondBody, "Network warning.") {
+		t.Fatalf("second body should hide network warning once cookie is set: %s", secondBody)
+	}
+}
+
 func TestAPIFeedSupportsPagination(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +176,7 @@ func TestSourcePageRendersScopedStories(t *testing.T) {
 	t.Parallel()
 
 	app := newTestApp(t, fixtureIndex())
-	req := httptest.NewRequest(http.MethodGet, "/sources/BBC%20News", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sources/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", nil)
 	rec := httptest.NewRecorder()
 
 	app.handler().ServeHTTP(rec, req)
@@ -106,11 +185,99 @@ func TestSourcePageRendersScopedStories(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "BBC News") {
-		t.Fatalf("body missing source name: %s", body)
+	if !strings.Contains(body, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef") {
+		t.Fatalf("body missing public-key source group: %s", body)
 	}
 	if !strings.Contains(body, "Oil rises in Europe") {
 		t.Fatalf("body missing story title: %s", body)
+	}
+	if !strings.Contains(body, "BBC News") {
+		t.Fatalf("body missing external source site label: %s", body)
+	}
+}
+
+func TestPostPageShowsRelativeArchivePath(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, fixtureIndex())
+	req := httptest.NewRequest(http.MethodGet, "/posts/post-1", nil)
+	rec := httptest.NewRecorder()
+
+	app.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "archive/2026-03-12/post-post-1.md") {
+		t.Fatalf("body missing relative archive path: %s", body)
+	}
+	if strings.Contains(body, "/tmp/archive/2026-03-12/post-post-1.md") {
+		t.Fatalf("body leaked absolute archive path: %s", body)
+	}
+}
+
+func TestArchiveMessageShowsRelativeArchivePath(t *testing.T) {
+	t.Parallel()
+
+	index := fixtureIndex()
+	archiveRoot := filepath.Join(t.TempDir(), "archive")
+	postPath := filepath.Join(archiveRoot, "2026-03-12", "post-post-1.md")
+	if err := os.MkdirAll(filepath.Dir(postPath), 0o755); err != nil {
+		t.Fatalf("mkdir archive dir: %v", err)
+	}
+	if err := os.WriteFile(postPath, []byte("# archived copy\n"), 0o644); err != nil {
+		t.Fatalf("write archive file: %v", err)
+	}
+	index.Bundles[0].ArchiveMD = postPath
+	post := index.Posts[0]
+	post.ArchiveMD = postPath
+	index.Posts[0] = post
+	index.PostByInfoHash["post-1"] = post
+	app := newTestApp(t, index)
+	req := httptest.NewRequest(http.MethodGet, "/archive/messages/post-1", nil)
+	rec := httptest.NewRecorder()
+
+	app.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "archive/2026-03-12/post-post-1.md") {
+		t.Fatalf("body missing relative archive path: %s", body)
+	}
+	if strings.Contains(body, postPath) {
+		t.Fatalf("body leaked absolute archive path: %s", body)
+	}
+}
+
+func TestAPIPostIncludesPublicKeySourceFields(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, fixtureIndex())
+	req := httptest.NewRequest(http.MethodGet, "/api/posts/post-1", nil)
+	rec := httptest.NewRecorder()
+
+	app.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var payload struct {
+		Post map[string]any `json:"post"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal json: %v", err)
+	}
+	if got, _ := payload.Post["source_name"].(string); got != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
+		t.Fatalf("source_name = %q", got)
+	}
+	if got, _ := payload.Post["source_site_name"].(string); got != "BBC News" {
+		t.Fatalf("source_site_name = %q", got)
+	}
+	if got, _ := payload.Post["origin_public_key"].(string); got != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
+		t.Fatalf("origin_public_key = %q", got)
 	}
 }
 
@@ -352,6 +519,7 @@ func fixtureIndex() Index {
 	now := time.Date(2026, 3, 12, 12, 0, 0, 0, time.UTC)
 	truth := 0.8
 	sourceScore := 0.9
+	const pubKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	post := Post{
 		Bundle: Bundle{
 			InfoHash:  "post-1",
@@ -364,10 +532,19 @@ func fixtureIndex() Index {
 				Author:   "agent://collector/a",
 				Channel:  "aip2p.news/world",
 				Tags:     []string{"energy"},
+				Origin: &MessageOrigin{
+					Author:    "writer://world/a",
+					AgentID:   "agent://world/a",
+					KeyType:   "ed25519",
+					PublicKey: pubKey,
+					Signature: "sig-post-1",
+				},
 			},
 		},
-		SourceName:         "BBC News",
+		SourceName:         pubKey,
+		SourceSiteName:     "BBC News",
 		SourceURL:          "https://example.com/oil",
+		OriginPublicKey:    pubKey,
 		Topics:             []string{"energy", "world"},
 		ChannelGroup:       "world",
 		PostType:           "news",
@@ -415,11 +592,18 @@ func fixtureIndex() Index {
 		},
 		ChannelStats: []FacetStat{{Name: "world", Count: 1}},
 		TopicStats:   []FacetStat{{Name: "energy", Count: 1}, {Name: "world", Count: 1}},
-		SourceStats:  []FacetStat{{Name: "BBC News", Count: 1}},
+		SourceStats:  []FacetStat{{Name: pubKey, Count: 1}},
 	}
-	index.Bundles[0].ArchiveMD = "/tmp/2026-03-12/post-post-1.md"
-	index.Bundles[1].ArchiveMD = "/tmp/2026-03-12/reply-reply-1.md"
-	index.Bundles[2].ArchiveMD = "/tmp/2026-03-12/reaction-reaction-1.md"
+	index.Bundles[0].ArchiveMD = "/tmp/archive/2026-03-12/post-post-1.md"
+	index.Bundles[1].ArchiveMD = "/tmp/archive/2026-03-12/reply-reply-1.md"
+	index.Bundles[2].ArchiveMD = "/tmp/archive/2026-03-12/reaction-reaction-1.md"
+	post.ArchiveMD = index.Bundles[0].ArchiveMD
+	reply.ArchiveMD = index.Bundles[1].ArchiveMD
+	reaction.ArchiveMD = index.Bundles[2].ArchiveMD
+	index.Posts[0] = post
+	index.PostByInfoHash["post-1"] = post
+	index.RepliesByPost["post-1"] = []Reply{reply}
+	index.ReactionsByPost["post-1"] = []Reaction{reaction}
 	return index
 }
 
