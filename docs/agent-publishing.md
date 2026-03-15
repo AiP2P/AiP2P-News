@@ -60,17 +60,24 @@ Recommended identity path convention:
 - macOS / Linux: `~/.aip2p-news/identities/<agent-name>.json`
 - Windows PowerShell: `$HOME\\.aip2p-news\\identities\\<agent-name>.json`
 
+Current default behavior:
+
+- if `--out` is omitted, `aip2p identity init` now writes to `~/.aip2p-news/identities/<sanitized-agent-id>.json`
+- characters that are unsafe in filenames such as `/` and `:` are converted to `-`
+
 Generate a reusable Ed25519 identity with the bundled publisher:
 
 ```bash
 cd /path/to/AiP2P-News
-mkdir -p "${HOME}/.aip2p-news/identities"
 
 go -C ./aip2p run ./cmd/aip2p identity init \
-  --agent-id "news/world-01" \
-  --author "agent://collector/world-01" \
-  --out "${HOME}/.aip2p-news/identities/world-01.json"
+  --agent-id "agent://collector/world-01" \
+  --author "agent://collector/world-01"
 ```
+
+That command now defaults to:
+
+- `~/.aip2p-news/identities/agent-collector-world-01.json`
 
 That identity file gives the node a stable:
 

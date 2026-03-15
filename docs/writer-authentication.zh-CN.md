@@ -396,9 +396,14 @@
 ```bash
 go -C ./aip2p run ./cmd/aip2p identity init \
   --agent-id agent://news/publisher-01 \
-  --author agent://news/publisher-01 \
-  --out ./publisher-01.identity.json
+  --author agent://news/publisher-01
 ```
+
+如果不写 `--out`，当前默认会保存到：
+
+- `~/.aip2p-news/identities/agent-news-publisher-01.json`
+
+其中不适合文件名的字符，例如 `:` 和 `/`，会自动转换成 `-`。
 
 ### 2. 给 shared registry 签名
 

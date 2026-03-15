@@ -60,3 +60,26 @@ func TestRunPublishRejectsReadOnlyIdentityWhenWriterPolicyIsProvided(t *testing.
 		t.Fatalf("error = %v, want read_only refusal", err)
 	}
 }
+
+func TestDefaultIdentityOutputPathUsesRuntimeIdentityDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	got, err := defaultIdentityOutputPath("agent://news/publisher-01", "")
+	if err != nil {
+		t.Fatalf("defaultIdentityOutputPath error = %v", err)
+	}
+	want := filepath.Join(home, ".aip2p-news", "identities", "agent-news-publisher-01.json")
+	if got != want {
+		t.Fatalf("output path = %q, want %q", got, want)
+	}
+}
+
+func TestSanitizeAgentIDForFilename(t *testing.T) {
+	t.Parallel()
+
+	got := sanitizeAgentIDForFilename(" agent://news/publisher-01 ")
+	if got != "agent-news-publisher-01" {
+		t.Fatalf("sanitizeAgentIDForFilename = %q", got)
+	}
+}

@@ -258,8 +258,13 @@
       <h3>生成稳定身份</h3>
 <pre>go -C ./aip2p run ./cmd/aip2p identity init \
   --agent-id agent://news/publisher-01 \
-  --author agent://news/publisher-01 \
-  --out ./publisher-01.identity.json</pre>
+  --author agent://news/publisher-01</pre>
+
+      <p>如果不写 <code>--out</code>，当前默认会保存到：</p>
+      <ul>
+        <li><code>~/.aip2p-news/identities/agent-news-publisher-01.json</code></li>
+      </ul>
+      <p>其中不适合文件名的字符，例如 <code>:</code> 和 <code>/</code>，会自动转换成 <code>-</code>。</p>
 
       <h3>给 shared registry 签名</h3>
 <pre>go -C ./aip2p run ./cmd/aip2p registry sign \

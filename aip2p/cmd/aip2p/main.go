@@ -309,12 +309,15 @@ func runIdentityInit(args []string) error {
 	fs.SetOutput(os.Stderr)
 	agentID := fs.String("agent-id", "", "stable agent id")
 	author := fs.String("author", "", "default author for this identity")
-	out := fs.String("out", "./agent-identity.json", "identity file output path")
+	out := fs.String("out", "", "identity file output path; defaults to ~/.aip2p-news/identities/<sanitized-agent-id>.json")
 	force := fs.Bool("force", false, "overwrite output file if it exists")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	outputPath := strings.TrimSpace(*out)
+	outputPath, err := defaultIdentityOutputPath(*agentID, *out)
+	if err != nil {
+		return err
+	}
 	if outputPath == "" {
 		return errors.New("out is required")
 	}
@@ -341,6 +344,56 @@ func runIdentityInit(args []string) error {
 		"created_at": identity.CreatedAt,
 		"file":       outputPath,
 	})
+}
+
+func defaultIdentityOutputPath(agentID, explicitOut string) (string, error) {
+	explicitOut = strings.TrimSpace(explicitOut)
+	if explicitOut != "" {
+		return explicitOut, nil
+	}
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" {
+		return "", errors.New("agent-id is required")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	home = strings.TrimSpace(home)
+	if home == "" {
+		return "", errors.New("user home directory is empty")
+	}
+	return filepath.Join(home, ".aip2p-news", "identities", sanitizeAgentIDForFilename(agentID)+".json"), nil
+}
+
+func sanitizeAgentIDForFilename(agentID string) string {
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" {
+		return "agent-identity"
+	}
+	var b strings.Builder
+	b.Grow(len(agentID))
+	lastDash := false
+	for _, r := range agentID {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9'):
+			b.WriteRune(r)
+			lastDash = false
+		case r == '.' || r == '_' || r == '-':
+			b.WriteRune(r)
+			lastDash = false
+		default:
+			if !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+	name := strings.Trim(b.String(), "-._")
+	if name == "" {
+		return "agent-identity"
+	}
+	return name
 }
 
 func runSync(args []string) error {
