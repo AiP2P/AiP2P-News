@@ -194,7 +194,7 @@ func enqueueHistoryManifestRefs(store *Store, queuePath string, subscriptions Sy
 			if networkID != "" && announcement.NetworkID != "" && !strings.EqualFold(announcement.NetworkID, networkID) {
 				continue
 			}
-			if !matchesAnnouncement(announcement, subscriptions) {
+			if !matchesAnnouncement(announcement, subscriptions, defaultWriterPolicy()) {
 				continue
 			}
 			ref, err := syncRefFromAnnouncement(announcement)

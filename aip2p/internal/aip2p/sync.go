@@ -24,6 +24,7 @@ type SyncOptions struct {
 	NetPath           string
 	TrackerListPath   string
 	SubscriptionsPath string
+	WriterPolicyPath  string
 	ListenAddr        string
 	Refs              []string
 	PollInterval      time.Duration
@@ -92,6 +93,10 @@ func RunSync(ctx context.Context, opts SyncOptions, logf func(string, ...any)) e
 	if err != nil {
 		return fmt.Errorf("load subscriptions: %w", err)
 	}
+	writerPolicy, err := LoadWriterPolicy(opts.WriterPolicyPath)
+	if err != nil {
+		return fmt.Errorf("load writer policy: %w", err)
+	}
 	trackers, err := LoadTrackerList(opts.TrackerListPath)
 	if err != nil {
 		return fmt.Errorf("load tracker list: %w", err)
@@ -145,6 +150,8 @@ func RunSync(ctx context.Context, opts SyncOptions, logf func(string, ...any)) e
 		netCfg:        netCfg,
 		trackers:      trackers,
 		subscriptions: subscriptions,
+		writerPolicy:  writerPolicy,
+		writerPath:    opts.WriterPolicyPath,
 		announced:     make(map[string]struct{}),
 		seeded:        make(map[string]struct{}),
 	}
@@ -226,6 +233,8 @@ type syncRuntime struct {
 	netCfg        NetworkBootstrapConfig
 	trackers      []string
 	subscriptions SyncSubscriptions
+	writerPolicy  WriterPolicy
+	writerPath    string
 	announced     map[string]struct{}
 	seeded        map[string]struct{}
 	activity      SyncActivityStatus
@@ -262,6 +271,29 @@ func (r *syncRuntime) queueRefs() int {
 	return r.activity.QueueRefs
 }
 
+func (r *syncRuntime) refreshWriterPolicy(logf func(string, ...any)) error {
+	if strings.TrimSpace(r.writerPath) == "" {
+		r.writerPolicy = defaultWriterPolicy()
+		return nil
+	}
+	policy, err := LoadWriterPolicy(r.writerPath)
+	if err != nil {
+		return err
+	}
+	r.writerPolicy = policy
+	if logf != nil && !policy.Empty() {
+		logf(
+			"writer policy loaded: allow_unsigned=%t allowed_agents=%d allowed_keys=%d blocked_agents=%d blocked_keys=%d",
+			policy.AllowUnsigned,
+			len(policy.AllowedAgentIDs),
+			len(policy.AllowedPublicKeys),
+			len(policy.BlockedAgentIDs),
+			len(policy.BlockedPublicKeys),
+		)
+	}
+	return nil
+}
+
 func (r *syncRuntime) writeStatus(ctx context.Context) error {
 	r.mu.Lock()
 	activity := r.activity
@@ -296,7 +328,7 @@ func (r *syncRuntime) processQueue(ctx context.Context, direct []string, timeout
 		logf("write sync status: %v", err)
 	}
 	for _, ref := range refs {
-		result := syncRef(ctx, r.torrentClient, r.store, ref, timeout, r.netCfg.LANPeers, r.trackers, r.subscriptions)
+		result := syncRef(ctx, r.torrentClient, r.store, ref, timeout, r.netCfg.LANPeers, r.trackers, r.subscriptions, r.writerPolicy)
 		r.recordResult(result)
 		if result.Status == "imported" || result.Status == "skipped" {
 			if err := removeSyncRef(r.queuePath, ref); err != nil && logf != nil {
@@ -325,6 +357,9 @@ func (r *syncRuntime) processQueue(ctx context.Context, direct []string, timeout
 }
 
 func (r *syncRuntime) reconcileQueue(ctx context.Context, direct []string, timeout time.Duration, logf func(string, ...any)) error {
+	if err := r.refreshWriterPolicy(logf); err != nil {
+		return err
+	}
 	if changed, err := sanitizeSyncQueueFile(r.queuePath, r.netCfg.LANPeers); err != nil {
 		return err
 	} else if changed > 0 && logf != nil {
@@ -371,6 +406,9 @@ func (r *syncRuntime) announceLocalBundles(ctx context.Context, logf func(string
 		}
 		if announcement.NetworkID == "" {
 			announcement.NetworkID = r.netCfg.NetworkID
+		}
+		if !r.writerPolicy.AllowsOrigin(announcement.Origin) {
+			continue
 		}
 		announcement.Magnet = withPeerHints(announcement.Magnet, r.torrentClient.ListenAddrs(), r.netCfg.LANPeers)
 		alwaysPublish := strings.EqualFold(announcement.Kind, historyManifestKind)
@@ -440,7 +478,7 @@ func (r *syncRuntime) handleAnnouncement(announcement SyncAnnouncement) (bool, e
 	if r.netCfg.NetworkID != "" && !strings.EqualFold(strings.TrimSpace(announcement.NetworkID), r.netCfg.NetworkID) {
 		return false, nil
 	}
-	if !matchesAnnouncement(announcement, r.subscriptions) {
+	if !matchesAnnouncement(announcement, r.subscriptions, r.writerPolicy) {
 		return false, nil
 	}
 	ref, err := ParseSyncRef(announcement.Magnet)
@@ -487,7 +525,7 @@ func (r *syncRuntime) enqueueHistoryFromLANPeers(ctx context.Context, logf func(
 			if r.netCfg.NetworkID != "" && announcement.NetworkID != "" && !strings.EqualFold(announcement.NetworkID, r.netCfg.NetworkID) {
 				continue
 			}
-			if !matchesAnnouncement(announcement, r.subscriptions) {
+			if !matchesAnnouncement(announcement, r.subscriptions, r.writerPolicy) {
 				continue
 			}
 			ref, err := syncRefFromAnnouncement(announcement)
@@ -1045,7 +1083,7 @@ func sanitizeQueuedSyncRef(raw string, lanPeers []string) (string, bool, error) 
 	return uri.String(), true, nil
 }
 
-func syncRef(ctx context.Context, client *torrent.Client, store *Store, ref SyncRef, timeout time.Duration, lanPeers []string, trackers []string, rules SyncSubscriptions) SyncItemResult {
+func syncRef(ctx context.Context, client *torrent.Client, store *Store, ref SyncRef, timeout time.Duration, lanPeers []string, trackers []string, rules SyncSubscriptions, policy WriterPolicy) SyncItemResult {
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -1137,6 +1175,15 @@ func syncRef(ctx context.Context, client *torrent.Client, store *Store, ref Sync
 			InfoHash: infoHash,
 			Status:   "failed",
 			Message:  fmt.Sprintf("validate downloaded bundle: %v", err),
+		}
+	}
+	if !policy.AllowsOrigin(msg.Origin) {
+		t.Drop()
+		return SyncItemResult{
+			Ref:      ref.Raw,
+			InfoHash: infoHash,
+			Status:   "skipped",
+			Message:  "writer policy rejected bundle origin",
 		}
 	}
 	dayCounts := localBundleDayCounts(store, contentDir)

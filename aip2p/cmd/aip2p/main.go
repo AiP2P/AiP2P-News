@@ -219,6 +219,7 @@ func runSync(args []string) error {
 	netPath := fs.String("net", "./aip2p_net.inf", "network bootstrap config")
 	trackersPath := fs.String("trackers", "", "tracker list file; defaults to Trackerlist.inf next to the net config")
 	subscriptionsPath := fs.String("subscriptions", "", "subscription rules file for pubsub topic joins")
+	writerPolicyPath := fs.String("writer-policy", "", "writer policy file for sync intake decisions")
 	listenAddr := fs.String("listen", "", "bittorrent listen address (overrides bittorrent_listen in the net config)")
 	magnets := fs.String("magnet", "", "comma-separated magnets or infohashes to sync immediately")
 	poll := fs.Duration("poll", 30*time.Second, "queue polling interval")
@@ -238,6 +239,7 @@ func runSync(args []string) error {
 		NetPath:           *netPath,
 		TrackerListPath:   *trackersPath,
 		SubscriptionsPath: *subscriptionsPath,
+		WriterPolicyPath:  *writerPolicyPath,
 		ListenAddr:        *listenAddr,
 		Refs:              splitCSV(*magnets),
 		PollInterval:      *poll,

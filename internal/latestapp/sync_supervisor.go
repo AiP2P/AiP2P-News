@@ -27,6 +27,7 @@ type ManagedSyncConfig struct {
 	StoreRoot  string
 	NetPath    string
 	RulesPath  string
+	WriterPolicyPath string
 	Trackers   string
 	StaleAfter time.Duration
 	Logf       func(string, ...any)
@@ -63,6 +64,9 @@ func StartManagedSyncSupervisor(parent context.Context, cfg ManagedSyncConfig) (
 	}
 	if strings.TrimSpace(cfg.RulesPath) == "" {
 		cfg.RulesPath = cfg.Runtime.RulesPath
+	}
+	if strings.TrimSpace(cfg.WriterPolicyPath) == "" {
+		cfg.WriterPolicyPath = cfg.Runtime.WriterPolicyPath
 	}
 	if strings.TrimSpace(cfg.Trackers) == "" {
 		cfg.Trackers = cfg.Runtime.TrackerPath
@@ -165,6 +169,7 @@ func (s *ManagedSyncSupervisor) startChild() (*exec.Cmd, <-chan error, error) {
 		"--store", s.cfg.StoreRoot,
 		"--net", s.cfg.NetPath,
 		"--subscriptions", s.cfg.RulesPath,
+		"--writer-policy", s.cfg.WriterPolicyPath,
 		"--trackers", s.cfg.Trackers,
 	}
 	cmd := exec.Command(s.cfg.BinaryPath, args...)

@@ -1,11 +1,22 @@
 package latestapp
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func testDefaultLatestNetINF() (string, error) {
+	return fmt.Sprintf(`network_id=%s
+libp2p_listen=/ip4/0.0.0.0/tcp/41001
+libp2p_listen=/ip4/0.0.0.0/udp/41001/quic-v1
+bittorrent_listen=0.0.0.0:41002
+lan_peer=%s
+lan_bt_peer=%s
+`, latestOrgNetworkID, defaultLANPeer, defaultLANPeer), nil
+}
 
 func TestDefaultRuntimePathsFromHome(t *testing.T) {
 	paths := DefaultRuntimePathsFromHome("/tmp/example-home")
@@ -21,6 +32,9 @@ func TestDefaultRuntimePathsFromHome(t *testing.T) {
 	if paths.RulesPath != "/tmp/example-home/.aip2p-news/subscriptions.json" {
 		t.Fatalf("rules = %q", paths.RulesPath)
 	}
+	if paths.WriterPolicyPath != "/tmp/example-home/.aip2p-news/writer_policy.json" {
+		t.Fatalf("writer policy = %q", paths.WriterPolicyPath)
+	}
 	if paths.NetPath != "/tmp/example-home/.aip2p-news/aip2p_news_net.inf" {
 		t.Fatalf("net = %q", paths.NetPath)
 	}
@@ -30,12 +44,17 @@ func TestDefaultRuntimePathsFromHome(t *testing.T) {
 }
 
 func TestEnsureRuntimeLayoutCreatesDefaultConfigFiles(t *testing.T) {
+	previous := buildDefaultLatestNetINF
+	buildDefaultLatestNetINF = testDefaultLatestNetINF
+	defer func() { buildDefaultLatestNetINF = previous }()
+
 	root := t.TempDir()
 	store := filepath.Join(root, "aip2p", ".aip2p")
 	archive := filepath.Join(root, "archive")
 	rules := filepath.Join(root, "subscriptions.json")
+	writerPolicy := filepath.Join(root, "writer_policy.json")
 	netPath := filepath.Join(root, "aip2p_news_net.inf")
-	if err := ensureRuntimeLayout(store, archive, rules, netPath); err != nil {
+	if err := ensureRuntimeLayout(store, archive, rules, writerPolicy, netPath); err != nil {
 		t.Fatalf("ensureRuntimeLayout() error = %v", err)
 	}
 	for _, path := range []string{
@@ -43,6 +62,7 @@ func TestEnsureRuntimeLayoutCreatesDefaultConfigFiles(t *testing.T) {
 		filepath.Join(store, "torrents"),
 		archive,
 		rules,
+		writerPolicy,
 		netPath,
 	} {
 		if _, err := os.Stat(path); err != nil {
@@ -55,6 +75,13 @@ func TestEnsureRuntimeLayoutCreatesDefaultConfigFiles(t *testing.T) {
 	}
 	if string(data) != defaultSubscriptionsJSON {
 		t.Fatalf("unexpected rules content: %q", string(data))
+	}
+	writerData, err := os.ReadFile(writerPolicy)
+	if err != nil {
+		t.Fatalf("ReadFile(writerPolicy) error = %v", err)
+	}
+	if string(writerData) != defaultWriterPolicyJSON {
+		t.Fatalf("unexpected writer policy content: %q", string(writerData))
 	}
 	netData, err := os.ReadFile(netPath)
 	if err != nil {
@@ -86,10 +113,15 @@ func TestEnsureRuntimeLayoutCreatesDefaultConfigFiles(t *testing.T) {
 }
 
 func TestEnsureRuntimeLayoutPreservesExistingRules(t *testing.T) {
+	previous := buildDefaultLatestNetINF
+	buildDefaultLatestNetINF = testDefaultLatestNetINF
+	defer func() { buildDefaultLatestNetINF = previous }()
+
 	root := t.TempDir()
 	store := filepath.Join(root, "aip2p", ".aip2p")
 	archive := filepath.Join(root, "archive")
 	rules := filepath.Join(root, "subscriptions.json")
+	writerPolicy := filepath.Join(root, "writer_policy.json")
 	netPath := filepath.Join(root, "aip2p_news_net.inf")
 	if err := os.MkdirAll(filepath.Dir(rules), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
@@ -97,7 +129,7 @@ func TestEnsureRuntimeLayoutPreservesExistingRules(t *testing.T) {
 	if err := os.WriteFile(rules, []byte("{\"topics\":[\"pc75\"]}\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
-	if err := ensureRuntimeLayout(store, archive, rules, netPath); err != nil {
+	if err := ensureRuntimeLayout(store, archive, rules, writerPolicy, netPath); err != nil {
 		t.Fatalf("ensureRuntimeLayout() error = %v", err)
 	}
 	data, err := os.ReadFile(rules)
@@ -110,10 +142,15 @@ func TestEnsureRuntimeLayoutPreservesExistingRules(t *testing.T) {
 }
 
 func TestEnsureRuntimeLayoutAppendsLatestNetworkIDToExistingNetConfig(t *testing.T) {
+	previous := buildDefaultLatestNetINF
+	buildDefaultLatestNetINF = testDefaultLatestNetINF
+	defer func() { buildDefaultLatestNetINF = previous }()
+
 	root := t.TempDir()
 	store := filepath.Join(root, "aip2p", ".aip2p")
 	archive := filepath.Join(root, "archive")
 	rules := filepath.Join(root, "subscriptions.json")
+	writerPolicy := filepath.Join(root, "writer_policy.json")
 	netPath := filepath.Join(root, "aip2p_news_net.inf")
 	if err := os.MkdirAll(filepath.Dir(netPath), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
@@ -121,7 +158,7 @@ func TestEnsureRuntimeLayoutAppendsLatestNetworkIDToExistingNetConfig(t *testing
 	if err := os.WriteFile(netPath, []byte("libp2p_rendezvous=aip2p.news/global\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
-	if err := ensureRuntimeLayout(store, archive, rules, netPath); err != nil {
+	if err := ensureRuntimeLayout(store, archive, rules, writerPolicy, netPath); err != nil {
 		t.Fatalf("ensureRuntimeLayout() error = %v", err)
 	}
 	data, err := os.ReadFile(netPath)

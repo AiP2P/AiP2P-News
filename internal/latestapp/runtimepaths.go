@@ -14,6 +14,7 @@ const defaultLANPeer = "192.168.102.74"
 const projectSyncBinaryName = "aip2p-news-syncd"
 
 const defaultSubscriptionsJSON = "{\n  \"channels\": [],\n  \"topics\": [\"all\"],\n  \"tags\": [],\n  \"max_age_days\": 99999999,\n  \"max_bundle_mb\": 10,\n  \"max_items_per_day\": 999999999999\n}\n"
+const defaultWriterPolicyJSON = "{\n  \"allow_unsigned\": true,\n  \"allowed_agent_ids\": [],\n  \"allowed_public_keys\": [],\n  \"blocked_agent_ids\": [],\n  \"blocked_public_keys\": []\n}\n"
 
 const defaultTrackerListINF = `# Trackerlist.inf
 # One tracker URI per line. Lines starting with #, ;, or // are ignored.
@@ -102,6 +103,8 @@ udp://wepzone.net:6969/announce
 wss://tracker.openwebtorrent.com:443/announce
 `
 
+var buildDefaultLatestNetINF = defaultLatestNetINF
+
 func defaultLatestNetINF() (string, error) {
 	libp2pPort, err := pickFreeTCPAndUDPPort()
 	if err != nil {
@@ -164,6 +167,7 @@ type RuntimePaths struct {
 	StoreRoot   string
 	ArchiveRoot string
 	RulesPath   string
+	WriterPolicyPath string
 	NetPath     string
 	TrackerPath string
 	StatusPath  string
@@ -195,6 +199,7 @@ func DefaultRuntimePathsFromHome(home string) RuntimePaths {
 		StoreRoot:   storeRoot,
 		ArchiveRoot: filepath.Join(root, "archive"),
 		RulesPath:   filepath.Join(root, "subscriptions.json"),
+		WriterPolicyPath: filepath.Join(root, "writer_policy.json"),
 		NetPath:     filepath.Join(root, "aip2p_news_net.inf"),
 		TrackerPath: filepath.Join(root, "Trackerlist.inf"),
 		StatusPath:  filepath.Join(storeRoot, "sync", "status.json"),

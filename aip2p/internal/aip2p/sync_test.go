@@ -1,10 +1,11 @@
 package aip2p
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/anacrolix/torrent/metainfo"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
 
 func TestParseSyncRefMagnet(t *testing.T) {
 	t.Parallel()
@@ -180,21 +187,37 @@ func TestSanitizeSyncQueueFileRemovesDirtyPeerHints(t *testing.T) {
 func TestResolveEffectiveDHTRoutersPrefersLANBTAnchors(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/network/bootstrap" {
-			http.NotFound(w, r)
-			return
-		}
-		_ = json.NewEncoder(w).Encode(lanBootstrapResponse{
-			NetworkID:       latestOrgNetworkID,
-			BitTorrentNodes: []string{"192.168.102.74:53396"},
-		})
-	}))
-	defer srv.Close()
+	previousClient := lanHTTPClient
+	lanHTTPClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.Path != "/api/network/bootstrap" {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Body:       io.NopCloser(strings.NewReader("not found")),
+					Header:     make(http.Header),
+					Request:    req,
+				}, nil
+			}
+			payload, err := json.Marshal(lanBootstrapResponse{
+				NetworkID:       latestOrgNetworkID,
+				BitTorrentNodes: []string{"192.168.102.74:53396"},
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(payload)),
+				Header:     make(http.Header),
+				Request:    req,
+			}, nil
+		}),
+	}
+	defer func() { lanHTTPClient = previousClient }()
 
 	cfg := NetworkBootstrapConfig{
 		NetworkID:       latestOrgNetworkID,
-		LANTorrentPeers: []string{srv.URL},
+		LANTorrentPeers: []string{"http://lan-bt-helper.test"},
 		DHTRouters:      []string{"router.bittorrent.com:6881", "router.utorrent.com:6881"},
 	}
 	routers, err := resolveEffectiveDHTRouters(context.Background(), cfg)

@@ -12,7 +12,7 @@ import (
 	"aip2pnews.local/internal/latestapp"
 )
 
-var version = "v0.2.45-demo"
+var version = "v0.2.46-demo"
 
 func main() {
 	runtimePaths, err := latestapp.DefaultRuntimePaths()
@@ -24,13 +24,14 @@ func main() {
 	project := flag.String("project", "aip2p.news", "project name to index")
 	archive := flag.String("archive", runtimePaths.ArchiveRoot, "UTC+0 markdown mirror root")
 	rules := flag.String("subscriptions", runtimePaths.RulesPath, "local subscription rules JSON")
+	writerPolicy := flag.String("writer-policy", runtimePaths.WriterPolicyPath, "local writer policy JSON")
 	netFile := flag.String("net", runtimePaths.NetPath, "network bootstrap config")
 	syncModeFlag := flag.String("sync-mode", string(latestapp.SyncModeManaged), "sync mode: managed, external, or off")
 	syncBinary := flag.String("sync-binary", runtimePaths.SyncBinPath, "managed sync binary path")
 	syncStaleAfter := flag.Duration("sync-stale-after", 2*time.Minute, "restart managed sync worker after this stale interval")
 	flag.Parse()
 
-	app, err := latestapp.New(*store, *project, version, *archive, *rules, *netFile)
+	app, err := latestapp.New(*store, *project, version, *archive, *rules, *writerPolicy, *netFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,6 +49,7 @@ func main() {
 			StoreRoot:  *store,
 			NetPath:    *netFile,
 			RulesPath:  *rules,
+			WriterPolicyPath: *writerPolicy,
 			Trackers:   runtimePaths.TrackerPath,
 			StaleAfter: *syncStaleAfter,
 			Logf:       log.Printf,
@@ -61,6 +63,7 @@ func main() {
 	log.Printf("AiP2P News Public listening on http://%s", *addr)
 	log.Printf("markdown archive mirror: %s", *archive)
 	log.Printf("subscription rules: %s", *rules)
+	log.Printf("writer policy: %s", *writerPolicy)
 	log.Printf("network bootstrap config: %s", *netFile)
 	if err := app.ListenAndServe(*addr); err != nil {
 		log.Fatal(err)

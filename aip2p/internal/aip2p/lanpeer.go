@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+var lanHTTPClient = http.DefaultClient
+
 type lanBootstrapResponse struct {
 	NetworkID       string   `json:"network_id"`
 	PeerID          string   `json:"peer_id"`
@@ -64,7 +66,7 @@ func fetchLANBootstrapPeer(ctx context.Context, value, expectedNetworkID string)
 	if err != nil {
 		return nil, fmt.Errorf("lan_peer %q request: %w", value, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := lanHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("lan_peer %q query %s: %w", value, endpoint, err)
 	}
@@ -134,7 +136,7 @@ func fetchLANTorrentRouters(ctx context.Context, value, expectedNetworkID string
 	if err != nil {
 		return nil, fmt.Errorf("lan_bt_peer %q request: %w", value, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := lanHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("lan_bt_peer %q query %s: %w", value, endpoint, err)
 	}
@@ -203,7 +205,7 @@ func fetchLANHistoryManifest(ctx context.Context, value, expectedNetworkID strin
 	if err != nil {
 		return lanHistoryManifestResponse{}, fmt.Errorf("lan_peer %q request: %w", value, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := lanHTTPClient.Do(req)
 	if err != nil {
 		return lanHistoryManifestResponse{}, fmt.Errorf("lan_peer %q query %s: %w", value, endpoint, err)
 	}

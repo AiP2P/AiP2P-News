@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -27,12 +28,14 @@ type App struct {
 	version    string
 	archive    string
 	rulesPath  string
+	writerPath string
 	netPath    string
 	listenAddr string
 	templates  *template.Template
 	loadIndex  func(storeRoot, project string) (Index, error)
 	syncIndex  func(index *Index, archiveRoot string) error
 	loadRules  func(path string) (SubscriptionRules, error)
+	loadWriter func(path string) (WriterPolicy, error)
 	loadNet    func(path string) (NetworkBootstrapConfig, error)
 	loadSync   func(storeRoot string) (SyncRuntimeStatus, error)
 	loadSuper  func(path string) (SyncSupervisorState, error)
@@ -224,8 +227,8 @@ type NetworkBootstrapResponse struct {
 	BitTorrentNodes []string `json:"bittorrent_nodes,omitempty"`
 }
 
-func New(storeRoot, project, version, archiveRoot, rulesPath, netPath string) (*App, error) {
-	if err := ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, netPath); err != nil {
+func New(storeRoot, project, version, archiveRoot, rulesPath, writerPath, netPath string) (*App, error) {
+	if err := ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, writerPath, netPath); err != nil {
 		return nil, err
 	}
 	tmpl, err := template.New("").
@@ -259,11 +262,13 @@ func New(storeRoot, project, version, archiveRoot, rulesPath, netPath string) (*
 		version:    strings.TrimSpace(version),
 		archive:    archiveRoot,
 		rulesPath:  rulesPath,
+		writerPath: writerPath,
 		netPath:    netPath,
 		templates:  tmpl,
 		loadIndex:  LoadIndex,
 		syncIndex:  SyncMarkdownArchive,
 		loadRules:  LoadSubscriptionRules,
+		loadWriter: LoadWriterPolicy,
 		loadNet:    LoadNetworkBootstrapConfig,
 		loadSync:   loadSyncRuntimeStatus,
 		loadSuper:  loadSyncSupervisorState,
@@ -271,7 +276,7 @@ func New(storeRoot, project, version, archiveRoot, rulesPath, netPath string) (*
 	}, nil
 }
 
-func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, netPath string) error {
+func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, writerPath, netPath string) error {
 	storeRoot = strings.TrimSpace(storeRoot)
 	if storeRoot != "" {
 		for _, dir := range []string{
@@ -304,16 +309,29 @@ func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, netPath string) erro
 			return err
 		}
 	}
+	writerPath = strings.TrimSpace(writerPath)
+	if writerPath != "" {
+		if err := os.MkdirAll(filepath.Dir(writerPath), 0o755); err != nil {
+			return err
+		}
+		if err := ensureFileIfMissing(writerPath, []byte(defaultWriterPolicyJSON)); err != nil {
+			return err
+		}
+	}
 	netPath = strings.TrimSpace(netPath)
 	if netPath != "" {
 		if err := os.MkdirAll(filepath.Dir(netPath), 0o755); err != nil {
 			return err
 		}
-		content, err := defaultLatestNetINF()
-		if err != nil {
-			return err
-		}
-		if err := ensureFileIfMissing(netPath, []byte(content)); err != nil {
+		if _, err := os.Stat(netPath); errors.Is(err, os.ErrNotExist) {
+			content, err := buildDefaultLatestNetINF()
+			if err != nil {
+				return err
+			}
+			if err := ensureFileIfMissing(netPath, []byte(content)); err != nil {
+				return err
+			}
+		} else if err != nil {
 			return err
 		}
 		if err := ensureFileIfMissing(filepath.Join(filepath.Dir(netPath), "Trackerlist.inf"), []byte(defaultTrackerListINF)); err != nil {
@@ -377,6 +395,13 @@ func (a *App) index() (Index, error) {
 			return Index{}, err
 		}
 		index = ApplySubscriptionRules(index, a.project, rules)
+	}
+	if a.loadWriter != nil {
+		policy, err := a.loadWriter(a.writerPath)
+		if err != nil {
+			return Index{}, err
+		}
+		index = ApplyWriterPolicy(index, a.project, policy)
 	}
 	if a.syncIndex != nil {
 		if err := a.syncIndex(&index, a.archive); err != nil {
@@ -872,7 +897,7 @@ func (a *App) handleAPINetworkBootstrap(w http.ResponseWriter, r *http.Request) 
 }
 
 func (a *App) latestHistoryListPayload() (HistoryManifestAPIResponse, error) {
-	index, err := a.loadIndex(a.storeRoot, a.project)
+	index, err := a.index()
 	if err != nil {
 		return HistoryManifestAPIResponse{}, err
 	}

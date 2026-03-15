@@ -42,6 +42,7 @@ type SyncAnnouncement struct {
 	NetworkID string   `json:"network_id,omitempty"`
 	Topics    []string `json:"topics,omitempty"`
 	Tags      []string `json:"tags,omitempty"`
+	Origin    *MessageOrigin `json:"origin,omitempty"`
 }
 
 type pubsubRuntime struct {
@@ -394,6 +395,7 @@ func normalizeAnnouncement(announcement SyncAnnouncement) SyncAnnouncement {
 	announcement.NetworkID = normalizeNetworkID(announcement.NetworkID)
 	announcement.Topics = uniqueFold(announcement.Topics)
 	announcement.Tags = uniqueFold(announcement.Tags)
+	announcement.Origin = normalizeOrigin(announcement.Origin)
 	return announcement
 }
 
@@ -443,6 +445,7 @@ func buildAnnouncement(msg Message, mi *metainfo.MetaInfo, info metainfo.Info) S
 		NetworkID: nestedString(msg.Extensions, "network_id"),
 		Topics:    stringSlice(msg.Extensions["topics"]),
 		Tags:      append([]string(nil), msg.Tags...),
+		Origin:    normalizeOrigin(msg.Origin),
 	})
 }
 
@@ -502,8 +505,12 @@ func stringSlice(value any) []string {
 	return uniqueFold(out)
 }
 
-func matchesAnnouncement(announcement SyncAnnouncement, rules SyncSubscriptions) bool {
+func matchesAnnouncement(announcement SyncAnnouncement, rules SyncSubscriptions, policy WriterPolicy) bool {
 	rules.Normalize()
+	policy.Normalize()
+	if !policy.AllowsOrigin(announcement.Origin) {
+		return false
+	}
 	if !withinMaxAge(announcement.CreatedAt, rules.MaxAgeDays) {
 		return false
 	}
@@ -530,4 +537,21 @@ func matchesAnnouncement(announcement SyncAnnouncement, rules SyncSubscriptions)
 		}
 	}
 	return false
+}
+
+func normalizeOrigin(origin *MessageOrigin) *MessageOrigin {
+	if origin == nil {
+		return nil
+	}
+	normalized := &MessageOrigin{
+		Author:    strings.TrimSpace(origin.Author),
+		AgentID:   strings.TrimSpace(origin.AgentID),
+		KeyType:   strings.TrimSpace(origin.KeyType),
+		PublicKey: strings.ToLower(strings.TrimSpace(origin.PublicKey)),
+		Signature: strings.ToLower(strings.TrimSpace(origin.Signature)),
+	}
+	if normalized.Author == "" && normalized.AgentID == "" && normalized.PublicKey == "" && normalized.Signature == "" {
+		return nil
+	}
+	return normalized
 }
