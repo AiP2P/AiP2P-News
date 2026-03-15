@@ -75,7 +75,7 @@ func LoadWriterPolicy(path string) (WriterPolicy, error) {
 
 func defaultWriterPolicy() WriterPolicy {
 	policy := WriterPolicy{
-		SyncMode:          WriterSyncModeMixed,
+		SyncMode:          WriterSyncModeAll,
 		AllowUnsigned:     true,
 		DefaultCapability: WriterCapabilityReadWrite,
 		RelayDefaultTrust: RelayTrustNeutral,
@@ -88,7 +88,7 @@ func (p *WriterPolicy) normalize() {
 	if p == nil {
 		return
 	}
-	p.SyncMode = normalizeWriterSyncMode(p.SyncMode, WriterSyncModeMixed)
+	p.SyncMode = normalizeWriterSyncMode(p.SyncMode, WriterSyncModeAll)
 	p.DefaultCapability = normalizeWriterCapability(p.DefaultCapability, WriterCapabilityReadWrite)
 	p.AllowedAgentIDs = uniqueFold(p.AllowedAgentIDs)
 	p.AllowedPublicKeys = normalizeHexList(p.AllowedPublicKeys)
@@ -106,7 +106,7 @@ func (p *WriterPolicy) normalize() {
 func (p WriterPolicy) Empty() bool {
 	p.normalize()
 	return p.AllowUnsigned &&
-		p.SyncMode == WriterSyncModeMixed &&
+		p.SyncMode == WriterSyncModeAll &&
 		p.DefaultCapability == WriterCapabilityReadWrite &&
 		len(p.AgentCapabilities) == 0 &&
 		len(p.PublicKeyCapabilities) == 0 &&

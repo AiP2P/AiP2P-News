@@ -277,7 +277,7 @@
 
 ```json
 {
-  "sync_mode": "mixed",
+  "sync_mode": "all",
   "allow_unsigned": true,
   "default_capability": "read_write",
   "trusted_authorities": {},
