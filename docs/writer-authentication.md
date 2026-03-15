@@ -575,7 +575,7 @@ The project policy is:
 - do not rely on central-server forum semantics
 - only control this node's acceptance and propagation behavior
 
-## Still Limited / Not Yet Built
+## Not Yet Implemented / Still Limited
 
 These areas are still intentionally minimal:
 
