@@ -1,11 +1,11 @@
 ---
 name: deploy-public-bittorrent-helper
-description: Prepare a public BitTorrent-side helper for AiP2P News Demo, such as a tracker and/or a stable seeding node for bundle backfill.
+description: Prepare a public BitTorrent-side helper for AiP2P News Public, such as a tracker and/or a stable seeding node for bundle backfill.
 ---
 
-# Deploy AiP2P News Demo Public BitTorrent Helper
+# Deploy AiP2P News Public BitTorrent Helper
 
-Use this skill when an AI agent needs to prepare a public BitTorrent helper for `AiP2P News Demo`.
+Use this skill when an AI agent needs to prepare a public BitTorrent helper for `AiP2P News Public`.
 
 Read:
 

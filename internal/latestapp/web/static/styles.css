@@ -858,6 +858,16 @@ dd {
   gap: 8px;
 }
 
+.network-error-details {
+  margin-top: 10px;
+}
+
+.network-error-details summary {
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 13px;
+}
+
 .network-code-list code,
 .network-code-inline {
   display: block;

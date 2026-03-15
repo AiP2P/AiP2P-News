@@ -41,7 +41,7 @@ type App struct {
 
 func displayProjectName(project string) string {
 	if strings.EqualFold(strings.TrimSpace(project), "aip2p.news") {
-		return "AiP2P News Demo"
+		return "AiP2P News Public"
 	}
 	return strings.TrimSpace(project)
 }
@@ -85,49 +85,49 @@ type NodeStatus struct {
 }
 
 type HomePageData struct {
-	Project        string
-	Version        string
-	Posts          []Post
-	Now            time.Time
-	ListenAddr     string
-	Options        FeedOptions
-	PageNav        []NavItem
-	TopicFacets    []FeedFacet
-	SourceFacets   []FeedFacet
-	SortOptions    []SortOption
-	WindowOptions  []TimeWindowOption
+	Project         string
+	Version         string
+	Posts           []Post
+	Now             time.Time
+	ListenAddr      string
+	Options         FeedOptions
+	PageNav         []NavItem
+	TopicFacets     []FeedFacet
+	SourceFacets    []FeedFacet
+	SortOptions     []SortOption
+	WindowOptions   []TimeWindowOption
 	PageSizeOptions []PageSizeOption
-	ActiveFilters  []ActiveFilter
-	SummaryStats   []SummaryStat
-	TotalPostCount int
-	Pagination     PaginationState
-	Subscriptions  SubscriptionRules
-	NodeStatus     NodeStatus
+	ActiveFilters   []ActiveFilter
+	SummaryStats    []SummaryStat
+	TotalPostCount  int
+	Pagination      PaginationState
+	Subscriptions   SubscriptionRules
+	NodeStatus      NodeStatus
 }
 
 type CollectionPageData struct {
-	Project        string
-	Version        string
-	Kind           string
-	Name           string
-	Path           string
-	DirectoryURL   string
-	APIPath        string
-	Now            time.Time
-	Posts          []Post
-	Options        FeedOptions
-	PageNav        []NavItem
-	SortOptions    []SortOption
-	WindowOptions  []TimeWindowOption
+	Project         string
+	Version         string
+	Kind            string
+	Name            string
+	Path            string
+	DirectoryURL    string
+	APIPath         string
+	Now             time.Time
+	Posts           []Post
+	Options         FeedOptions
+	PageNav         []NavItem
+	SortOptions     []SortOption
+	WindowOptions   []TimeWindowOption
 	PageSizeOptions []PageSizeOption
-	SideLabel      string
-	SideFacets     []FeedFacet
-	ActiveFilters  []ActiveFilter
-	SummaryStats   []SummaryStat
-	TotalPostCount int
-	Pagination     PaginationState
-	ExternalURL    string
-	NodeStatus     NodeStatus
+	SideLabel       string
+	SideFacets      []FeedFacet
+	ActiveFilters   []ActiveFilter
+	SummaryStats    []SummaryStat
+	TotalPostCount  int
+	Pagination      PaginationState
+	ExternalURL     string
+	NodeStatus      NodeStatus
 }
 
 type DirectoryPageData struct {
@@ -300,9 +300,9 @@ func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, netPath string) erro
 		if err := os.MkdirAll(filepath.Dir(rulesPath), 0o755); err != nil {
 			return err
 		}
-	if err := ensureFileIfMissing(rulesPath, []byte(defaultSubscriptionsJSON)); err != nil {
-		return err
-	}
+		if err := ensureFileIfMissing(rulesPath, []byte(defaultSubscriptionsJSON)); err != nil {
+			return err
+		}
 	}
 	netPath = strings.TrimSpace(netPath)
 	if netPath != "" {
@@ -313,15 +313,15 @@ func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, netPath string) erro
 		if err != nil {
 			return err
 		}
-	if err := ensureFileIfMissing(netPath, []byte(content)); err != nil {
-		return err
-	}
-	if err := ensureFileIfMissing(filepath.Join(filepath.Dir(netPath), "Trackerlist.inf"), []byte(defaultTrackerListINF)); err != nil {
-		return err
-	}
-	if err := appendNetworkIDIfMissing(netPath, latestOrgNetworkID); err != nil {
-		return err
-	}
+		if err := ensureFileIfMissing(netPath, []byte(content)); err != nil {
+			return err
+		}
+		if err := ensureFileIfMissing(filepath.Join(filepath.Dir(netPath), "Trackerlist.inf"), []byte(defaultTrackerListINF)); err != nil {
+			return err
+		}
+		if err := appendNetworkIDIfMissing(netPath, latestOrgNetworkID); err != nil {
+			return err
+		}
 		if err := appendLANPeerIfMissing(netPath, defaultLANPeer); err != nil {
 			return err
 		}
@@ -405,24 +405,24 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	allPosts := index.FilterPosts(opts)
 	posts, pagination := paginatePosts(allPosts, opts, "/")
 	data := HomePageData{
-		Project:        displayProjectName(a.project),
-		Version:        a.version,
-		Posts:          posts,
-		Now:            time.Now(),
-		ListenAddr:     a.httpListenAddr(),
-		Options:        opts,
-		PageNav:        buildPageNav("/"),
-		TopicFacets:    buildFeedFacets(index.TopicStats, opts, "/", "topic"),
-		SourceFacets:   buildFeedFacets(index.SourceStats, opts, "/", "source"),
-		SortOptions:    buildSortOptions(opts, "/"),
-		WindowOptions:  buildWindowOptions(opts, "/"),
+		Project:         displayProjectName(a.project),
+		Version:         a.version,
+		Posts:           posts,
+		Now:             time.Now(),
+		ListenAddr:      a.httpListenAddr(),
+		Options:         opts,
+		PageNav:         buildPageNav("/"),
+		TopicFacets:     buildFeedFacets(index.TopicStats, opts, "/", "topic"),
+		SourceFacets:    buildFeedFacets(index.SourceStats, opts, "/", "source"),
+		SortOptions:     buildSortOptions(opts, "/"),
+		WindowOptions:   buildWindowOptions(opts, "/"),
 		PageSizeOptions: buildPageSizeOptions(opts, "/"),
-		ActiveFilters:  buildActiveFilters(opts, "/"),
-		SummaryStats:   buildSummaryStats(allPosts),
-		TotalPostCount: len(index.Posts),
-		Pagination:     pagination,
-		Subscriptions:  rules,
-		NodeStatus:     a.nodeStatus(index),
+		ActiveFilters:   buildActiveFilters(opts, "/"),
+		SummaryStats:    buildSummaryStats(allPosts),
+		TotalPostCount:  len(index.Posts),
+		Pagination:      pagination,
+		Subscriptions:   rules,
+		NodeStatus:      a.nodeStatus(index),
 	}
 	if err := a.templates.ExecuteTemplate(w, "home.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -553,28 +553,28 @@ func (a *App) handleSource(w http.ResponseWriter, r *http.Request) {
 	}
 	fullSet := index.FilterPosts(FeedOptions{Source: name, Now: opts.Now})
 	data := CollectionPageData{
-		Project:        displayProjectName(a.project),
-		Version:        a.version,
-		Kind:           "Source",
-		Name:           name,
-		Path:           sourcePath(name),
-		DirectoryURL:   "/sources",
-		APIPath:        "/api" + sourcePath(name),
-		Now:            time.Now(),
-		Posts:          posts,
-		Options:        opts,
-		PageNav:        buildPageNav("/sources"),
-		SortOptions:    buildSortOptions(opts, sourcePath(name), "source"),
-		WindowOptions:  buildWindowOptions(opts, sourcePath(name), "source"),
+		Project:         displayProjectName(a.project),
+		Version:         a.version,
+		Kind:            "Source",
+		Name:            name,
+		Path:            sourcePath(name),
+		DirectoryURL:    "/sources",
+		APIPath:         "/api" + sourcePath(name),
+		Now:             time.Now(),
+		Posts:           posts,
+		Options:         opts,
+		PageNav:         buildPageNav("/sources"),
+		SortOptions:     buildSortOptions(opts, sourcePath(name), "source"),
+		WindowOptions:   buildWindowOptions(opts, sourcePath(name), "source"),
 		PageSizeOptions: buildPageSizeOptions(opts, sourcePath(name), "source"),
-		SideLabel:      "Topics from this source",
-		SideFacets:     buildFacetLinks(topicStatsForPosts(fullSet), opts, sourcePath(name), "topic", "source"),
-		ActiveFilters:  buildActiveFilters(opts, sourcePath(name), "source"),
-		SummaryStats:   buildSummaryStats(allPosts),
-		TotalPostCount: len(fullSet),
-		Pagination:     pagination,
-		ExternalURL:    sourceURLFromPosts(fullSet),
-		NodeStatus:     a.nodeStatus(index),
+		SideLabel:       "Topics from this source",
+		SideFacets:      buildFacetLinks(topicStatsForPosts(fullSet), opts, sourcePath(name), "topic", "source"),
+		ActiveFilters:   buildActiveFilters(opts, sourcePath(name), "source"),
+		SummaryStats:    buildSummaryStats(allPosts),
+		TotalPostCount:  len(fullSet),
+		Pagination:      pagination,
+		ExternalURL:     sourceURLFromPosts(fullSet),
+		NodeStatus:      a.nodeStatus(index),
 	}
 	if err := a.templates.ExecuteTemplate(w, "collection.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -629,27 +629,27 @@ func (a *App) handleTopic(w http.ResponseWriter, r *http.Request) {
 	}
 	fullSet := index.FilterPosts(FeedOptions{Topic: name, Now: opts.Now})
 	data := CollectionPageData{
-		Project:        displayProjectName(a.project),
-		Version:        a.version,
-		Kind:           "Topic",
-		Name:           name,
-		Path:           topicPath(name),
-		DirectoryURL:   "/topics",
-		APIPath:        "/api" + topicPath(name),
-		Now:            time.Now(),
-		Posts:          posts,
-		Options:        opts,
-		PageNav:        buildPageNav("/topics"),
-		SortOptions:    buildSortOptions(opts, topicPath(name), "topic"),
-		WindowOptions:  buildWindowOptions(opts, topicPath(name), "topic"),
+		Project:         displayProjectName(a.project),
+		Version:         a.version,
+		Kind:            "Topic",
+		Name:            name,
+		Path:            topicPath(name),
+		DirectoryURL:    "/topics",
+		APIPath:         "/api" + topicPath(name),
+		Now:             time.Now(),
+		Posts:           posts,
+		Options:         opts,
+		PageNav:         buildPageNav("/topics"),
+		SortOptions:     buildSortOptions(opts, topicPath(name), "topic"),
+		WindowOptions:   buildWindowOptions(opts, topicPath(name), "topic"),
 		PageSizeOptions: buildPageSizeOptions(opts, topicPath(name), "topic"),
-		SideLabel:      "Sources covering this topic",
-		SideFacets:     buildFacetLinks(sourceStatsForPosts(fullSet), opts, topicPath(name), "source", "topic"),
-		ActiveFilters:  buildActiveFilters(opts, topicPath(name), "topic"),
-		SummaryStats:   buildSummaryStats(allPosts),
-		TotalPostCount: len(fullSet),
-		Pagination:     pagination,
-		NodeStatus:     a.nodeStatus(index),
+		SideLabel:       "Sources covering this topic",
+		SideFacets:      buildFacetLinks(sourceStatsForPosts(fullSet), opts, topicPath(name), "source", "topic"),
+		ActiveFilters:   buildActiveFilters(opts, topicPath(name), "topic"),
+		SummaryStats:    buildSummaryStats(allPosts),
+		TotalPostCount:  len(fullSet),
+		Pagination:      pagination,
+		NodeStatus:      a.nodeStatus(index),
 	}
 	if err := a.templates.ExecuteTemplate(w, "collection.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -810,12 +810,12 @@ func (a *App) handleAPIFeed(w http.ResponseWriter, r *http.Request) {
 	allPosts := index.FilterPosts(opts)
 	posts, pagination := paginatePosts(allPosts, opts, "/api/feed")
 	writeJSON(w, http.StatusOK, map[string]any{
-		"project": a.project,
-		"scope":   "feed",
-		"options": apiOptions(opts),
-		"summary": buildSummaryStats(allPosts),
+		"project":    a.project,
+		"scope":      "feed",
+		"options":    apiOptions(opts),
+		"summary":    buildSummaryStats(allPosts),
 		"pagination": pagination,
-		"posts":   apiPosts(posts),
+		"posts":      apiPosts(posts),
 		"facets": map[string]any{
 			"channels": index.ChannelStats,
 			"topics":   index.TopicStats,
@@ -1060,15 +1060,15 @@ func (a *App) handleAPITopic(w http.ResponseWriter, r *http.Request) {
 
 func readFeedOptions(r *http.Request) FeedOptions {
 	return FeedOptions{
-		Channel: strings.TrimSpace(r.URL.Query().Get("channel")),
-		Topic:   strings.TrimSpace(r.URL.Query().Get("topic")),
-		Source:  strings.TrimSpace(r.URL.Query().Get("source")),
-		Sort:    strings.TrimSpace(r.URL.Query().Get("sort")),
-		Query:   strings.TrimSpace(r.URL.Query().Get("q")),
-		Window:  canonicalWindow(r.URL.Query().Get("window")),
-		Page:    parsePositiveInt(r.URL.Query().Get("page"), 1),
+		Channel:  strings.TrimSpace(r.URL.Query().Get("channel")),
+		Topic:    strings.TrimSpace(r.URL.Query().Get("topic")),
+		Source:   strings.TrimSpace(r.URL.Query().Get("source")),
+		Sort:     strings.TrimSpace(r.URL.Query().Get("sort")),
+		Query:    strings.TrimSpace(r.URL.Query().Get("q")),
+		Window:   canonicalWindow(r.URL.Query().Get("window")),
+		Page:     parsePositiveInt(r.URL.Query().Get("page"), 1),
 		PageSize: parseFeedPageSize(r.URL.Query().Get("page_size")),
-		Now:     time.Now(),
+		Now:      time.Now(),
 	}
 }
 
@@ -1188,7 +1188,7 @@ func (a *App) nodeStatus(index Index) NodeStatus {
 	case len(netCfg.LibP2PBootstrap) > 0 && len(netCfg.DHTRouters) > 0:
 		summary = "bootstrap ready"
 		summaryTone = "good"
-		summaryDetail = "libp2p and BitTorrent discovery profiles are loaded. AiP2P News Demo is still in UI/index mode until the sync daemon is running."
+		summaryDetail = "libp2p and BitTorrent discovery profiles are loaded. AiP2P News Public is still in UI/index mode until the sync daemon is running."
 	case len(netCfg.LibP2PBootstrap) > 0 || len(netCfg.DHTRouters) > 0:
 		summary = "partially ready"
 		summaryTone = "warn"
@@ -1265,7 +1265,7 @@ func buildLiveNodeStatus(index Index, storeState, storeTone string, torrentCount
 	libp2pTone := "warn"
 	libp2pDetail := "Live libp2p bootstrap reachability from the sync daemon."
 	if syncStatus.LibP2P.LastError != "" {
-		libp2pDetail = syncStatus.LibP2P.LastError
+		libp2pDetail = summarizeNetworkError(syncStatus.LibP2P.LastError, "libp2p bootstrap has transient dial noise.")
 	}
 	if syncStatus.LibP2P.ReachableBootstrap > 0 {
 		libp2pTone = "good"
@@ -1282,7 +1282,7 @@ func buildLiveNodeStatus(index Index, storeState, storeTone string, torrentCount
 	dhtTone := "warn"
 	dhtDetail := fmt.Sprintf("%d DHT servers, %d outstanding transactions.", syncStatus.BitTorrentDHT.Servers, syncStatus.BitTorrentDHT.OutstandingTransactions)
 	if syncStatus.BitTorrentDHT.LastError != "" {
-		dhtDetail = syncStatus.BitTorrentDHT.LastError
+		dhtDetail = summarizeNetworkError(syncStatus.BitTorrentDHT.LastError, "BitTorrent DHT reported a transport problem.")
 	}
 	if syncStatus.BitTorrentDHT.GoodNodes > 0 {
 		dhtTone = "good"
@@ -1295,7 +1295,7 @@ func buildLiveNodeStatus(index Index, storeState, storeTone string, torrentCount
 		pubsubValue = fmt.Sprintf("%d topics · %d rx · %d enqueued", len(syncStatus.PubSub.JoinedTopics), syncStatus.PubSub.Received, syncStatus.PubSub.Enqueued)
 		pubsubDetail = fmt.Sprintf("%d local announcements published across %d discovery namespaces.", syncStatus.PubSub.Published, len(syncStatus.PubSub.DiscoveryNamespaces))
 		if syncStatus.PubSub.LastError != "" {
-			pubsubDetail = syncStatus.PubSub.LastError
+			pubsubDetail = summarizeNetworkError(syncStatus.PubSub.LastError, "Pubsub relay is active but some peer announcements are noisy.")
 		}
 		pubsubTone = "good"
 	}
@@ -1309,7 +1309,7 @@ func buildLiveNodeStatus(index Index, storeState, storeTone string, torrentCount
 	} else {
 		mdnsValue = fmt.Sprintf("%d discovered · %d connected", syncStatus.LibP2P.MDNS.DiscoveredPeers, syncStatus.LibP2P.MDNS.ConnectedPeers)
 		if syncStatus.LibP2P.MDNS.LastError != "" {
-			mdnsDetail = syncStatus.LibP2P.MDNS.LastError
+			mdnsDetail = summarizeNetworkError(syncStatus.LibP2P.MDNS.LastError, "mDNS is active but local peer dialing is noisy.")
 		} else if syncStatus.LibP2P.MDNS.DiscoveredPeers > 0 {
 			mdnsTone = "good"
 			mdnsDetail = "Local network peers have been discovered through mDNS."
@@ -1369,6 +1369,35 @@ func buildLiveNodeStatus(index Index, storeState, storeTone string, torrentCount
 			{Label: "Sync daemon", Value: syncDaemonValue, Detail: syncDaemonDetail, Tone: "good"},
 			{Label: "Network ID", Value: networkIDValue, Detail: networkIDDetail, Tone: networkIDTone},
 		},
+	}
+}
+
+func summarizeNetworkError(raw, fallback string) string {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return fallback
+	}
+	lower := strings.ToLower(text)
+	switch {
+	case strings.Contains(lower, "dial to self attempted"):
+		return "A discovered address points back to this node. This is noisy but harmless."
+	case strings.Contains(lower, "peer id mismatch"):
+		return "At least one peer advertised an address with the wrong peer identity. The node skipped it."
+	case strings.Contains(lower, "no addresses"):
+		return "A peer was discovered without dialable addresses. Discovery still worked, but that peer could not be contacted."
+	case strings.Contains(lower, "context deadline exceeded"):
+		return "A network dial timed out. The node will keep retrying healthy peers."
+	case strings.Contains(lower, "connection refused"):
+		return "A peer address was reachable at the network layer but refused the connection."
+	case strings.Contains(lower, "all dials failed"):
+		return "Some peer dial attempts failed. Other reachable peers may still be healthy."
+	case strings.Contains(lower, "timed out waiting for metadata"):
+		return "Torrent metadata retrieval timed out for at least one queued ref."
+	default:
+		if len(text) > 180 {
+			return fallback
+		}
+		return text
 	}
 }
 

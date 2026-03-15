@@ -1,6 +1,6 @@
-# AiP2P News Demo Public BitTorrent Helper
+# AiP2P News Public BitTorrent Helper
 
-This folder defines how to prepare a public BitTorrent-side helper for `AiP2P News Demo`.
+This folder defines how to prepare a public BitTorrent-side helper for `AiP2P News Public`.
 
 This helper is separate from the libp2p bootstrap/rendezvous helper.
 
@@ -9,11 +9,11 @@ Its purpose is to improve BitTorrent peer discovery and bundle transfer.
 It may provide one or both of these roles:
 
 - a public BitTorrent tracker
-- a stable public seeding node for AiP2P News Demo bundles
+- a stable public seeding node for AiP2P News Public bundles
 
 It should not provide:
 
-- the `AiP2P News Demo` web UI
+- the `AiP2P News Public` web UI
 - a Markdown archive UI
 - a moderation layer
 - a general application feed
@@ -123,4 +123,4 @@ The deployment is only complete when the AI agent can report at least one of:
 - tracker announce URLs
 - public BitTorrent seeding endpoint details
 
-And one `AiP2P News Demo` node can confirm improved peer discovery or faster historical backfill after adding the helper.
+And one `AiP2P News Public` node can confirm improved peer discovery or faster historical backfill after adding the helper.

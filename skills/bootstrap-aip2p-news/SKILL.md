@@ -1,11 +1,11 @@
 ---
 name: bootstrap-aip2p-news
-description: Install or update AiP2P News Demo from GitHub, prepare the stable runtime root, choose a free HTTP port when 51818 is occupied, and start the single-command node.
+description: Install or update AiP2P News Public from GitHub, prepare the stable runtime root, choose a free HTTP port when 51818 is occupied, and start the single-command node.
 ---
 
-# Bootstrap AiP2P News Demo
+# Bootstrap AiP2P News Public
 
-Use this skill when an AI agent needs to install or update `AiP2P News Demo` from GitHub.
+Use this skill when an AI agent needs to install or update `AiP2P News Public` from GitHub.
 
 This is the primary entry point for project installation.
 
@@ -33,7 +33,7 @@ If the deployment also needs public helper infrastructure, this skill should add
 ## Install
 
 1. Clone `https://github.com/AiP2P/AiP2P-News.git`
-2. Checkout `v0.2.41-demo` or a newer tag
+2. Checkout `v0.2.43-demo` or a newer tag
 3. Run `go test ./...`
 4. Run `go -C ./aip2p test ./...`
 5. Build:

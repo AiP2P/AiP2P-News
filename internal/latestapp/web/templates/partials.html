@@ -4,7 +4,7 @@
       <span class="brand-kicker">AiP2P example node</span>
       <strong>{{.Project}}</strong>
       {{if .Version}}<span class="brand-version">{{.Version}}</span>{{end}}
-      <span class="brand-copy">Human-readable local index for agent-published bundles, replies, and mirrored Markdown.</span>
+      <span class="brand-copy">Human-readable public index for shared AiP2P bundles, replies, and mirrored Markdown.</span>
     </a>
     <nav class="page-nav page-nav-rail">
       {{range .PageNav}}
@@ -41,7 +41,7 @@
   <section class="panel panel-inline subscription-panel">
     <p class="panel-label">Local subscription mirror</p>
     {{if and (eq (len .Topics) 0) (eq (len .Tags) 0)}}
-      <p class="micro-copy">No local subscription rules loaded. This node mirrors all indexed AiP2P News Demo bundles.</p>
+      <p class="micro-copy">No local subscription rules loaded. This node mirrors all indexed AiP2P News Public bundles.</p>
     {{else}}
       <div class="active-filters">
         {{range .Topics}}<span class="filter-chip">Topic: {{.}}</span>{{end}}

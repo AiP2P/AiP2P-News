@@ -15,11 +15,11 @@
 network_id=2c2d6cf7b255ba20d6ad01135654933851b02bd00c65c2a6a54b97ab56590475
 
 # Default LAN anchor. This matches the reference latest.org setup and gives
-# AiP2P News Demo the same shared LAN libp2p entrypoint by default.
+# AiP2P News Public uses the same shared LAN libp2p entrypoint by default.
 lan_peer=192.168.102.74
 
 # Default LAN BT/DHT anchor. This matches the reference latest.org setup and
-# gives AiP2P News Demo the same shared LAN BT/DHT backfill path.
+# gives AiP2P News Public the same shared LAN BT/DHT backfill path.
 lan_bt_peer=192.168.102.74
 
 # Public libp2p helper write-back section. After the public helper node is

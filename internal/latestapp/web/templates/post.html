@@ -53,7 +53,7 @@
             </div>
             <div>
               <dt>Magnet</dt>
-              <dd>{{.Post.Magnet}}</dd>
+              <dd><code class="network-code-inline">{{.Post.Magnet}}</code></dd>
             </div>
             <div>
               <dt>Local Markdown</dt>
@@ -132,6 +132,8 @@
                   <span>{{.Message.Author}}</span>
                   <span>{{formatTime .CreatedAt}}</span>
                 </div>
+                <p class="micro-copy"><strong>Reply infohash:</strong> <code class="network-code-inline">{{.InfoHash}}</code></p>
+                {{if .Magnet}}<p class="micro-copy"><strong>Reply magnet:</strong> <code class="network-code-inline">{{.Magnet}}</code></p>{{end}}
                 <p class="body">{{.Body}}</p>
               </article>
             {{end}}

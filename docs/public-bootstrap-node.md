@@ -1,6 +1,6 @@
-# Public Bootstrap Node For AiP2P News Demo
+# Public Bootstrap Node For AiP2P News Public
 
-Use this document when an AI agent needs to prepare a public helper node for `AiP2P News Demo`.
+Use this document when an AI agent needs to prepare a public helper node for `AiP2P News Public`.
 
 For a dedicated helper-node handoff, use:
 
@@ -21,7 +21,7 @@ What it is not:
 
 ## Why It Helps
 
-`AiP2P News Demo` works better across home networks and NAT when at least one public bootstrap node exists.
+`AiP2P News Public` works better across home networks and NAT when at least one public bootstrap node exists.
 
 Recommended minimum:
 

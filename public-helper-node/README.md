@@ -1,6 +1,6 @@
-# AiP2P News Demo Public Helper Node
+# AiP2P News Public Helper Node
 
-This folder defines how to deploy a dedicated public Internet helper node for `AiP2P News Demo`.
+This folder defines how to deploy a dedicated public Internet helper node for `AiP2P News Public`.
 
 The helper node is part of the transport layer only.
 
@@ -12,7 +12,7 @@ It should provide:
 
 It should not provide:
 
-- the `AiP2P News Demo` web UI
+- the `AiP2P News Public` web UI
 - a Markdown archive
 - a project feed
 - a long-running application backfill queue
@@ -79,7 +79,7 @@ Do not fabricate a repository command that does not exist.
 
 ## Runtime Config Write-Back
 
-After the helper node is working, `AiP2P News Demo` nodes should add entries like:
+After the helper node is working, `AiP2P News Public` nodes should add entries like:
 
 ```text
 libp2p_bootstrap=/dns4/free001.aip2p.org/tcp/4001/p2p/<peer-id>
@@ -106,4 +106,4 @@ The deployment is only complete when the AI agent can report:
   - rendezvous
   - relay if enabled
 
-And at least one `AiP2P News Demo` node can show improved network status after adding the helper node.
+And at least one `AiP2P News Public` node can show improved network status after adding the helper node.

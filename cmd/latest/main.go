@@ -12,7 +12,7 @@ import (
 	"aip2pnews.local/internal/latestapp"
 )
 
-var version = "v0.2.41-demo"
+var version = "v0.2.43-demo"
 
 func main() {
 	runtimePaths, err := latestapp.DefaultRuntimePaths()
@@ -58,7 +58,7 @@ func main() {
 		defer supervisor.Stop()
 		log.Printf("managed sync mode enabled; aip2p-newsd will supervise %s", latestapp.ProjectSyncBinaryNameForLogs())
 	}
-	log.Printf("AiP2P News listening on http://%s", *addr)
+	log.Printf("AiP2P News Public listening on http://%s", *addr)
 	log.Printf("markdown archive mirror: %s", *archive)
 	log.Printf("subscription rules: %s", *rules)
 	log.Printf("network bootstrap config: %s", *netFile)

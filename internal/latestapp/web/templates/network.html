@@ -165,7 +165,10 @@
               </div>
             {{end}}
             {{if .SyncStatus.PubSub.LastError}}
-              <p class="micro-copy network-error-copy">{{.SyncStatus.PubSub.LastError}}</p>
+              <details class="network-error-details">
+                <summary>Raw pubsub error</summary>
+                <p class="micro-copy network-error-copy">{{.SyncStatus.PubSub.LastError}}</p>
+              </details>
             {{end}}
           </section>
 
@@ -209,7 +212,12 @@
                     </div>
                     <code class="network-code-inline">{{.Address}}</code>
                     {{if .RTT}}<p class="micro-copy">RTT {{.RTT}}</p>{{end}}
-                    {{if .Error}}<p class="micro-copy network-error-copy">{{.Error}}</p>{{end}}
+                    {{if .Error}}
+                      <details class="network-error-details">
+                        <summary>Raw peer error</summary>
+                        <p class="micro-copy network-error-copy">{{.Error}}</p>
+                      </details>
+                    {{end}}
                   </article>
                 {{end}}
               </div>
@@ -245,7 +253,12 @@
                       <span class="status-pill status-{{if .Connected}}good{{else}}warn{{end}}">{{if .Connected}}connected{{else}}discovered{{end}}</span>
                     </div>
                     <code class="network-code-inline">{{.Address}}</code>
-                    {{if .Error}}<p class="micro-copy network-error-copy">{{.Error}}</p>{{end}}
+                    {{if .Error}}
+                      <details class="network-error-details">
+                        <summary>Raw LAN error</summary>
+                        <p class="micro-copy network-error-copy">{{.Error}}</p>
+                      </details>
+                    {{end}}
                   </article>
                 {{end}}
               </div>

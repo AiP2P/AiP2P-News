@@ -1,11 +1,11 @@
 ---
 name: deploy-public-helper-node
-description: Prepare a dedicated public helper node for AiP2P News Demo that only serves libp2p bootstrap, rendezvous, and optional relay.
+description: Prepare a dedicated public helper node for AiP2P News Public that only serves libp2p bootstrap, rendezvous, and optional relay.
 ---
 
-# Deploy AiP2P News Demo Public Helper Node
+# Deploy AiP2P News Public Helper Node
 
-Use this skill when an AI agent needs to prepare a public Internet helper node for `AiP2P News Demo`.
+Use this skill when an AI agent needs to prepare a public Internet helper node for `AiP2P News Public`.
 
 Read:
 
