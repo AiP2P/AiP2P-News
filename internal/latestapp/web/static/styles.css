@@ -852,6 +852,50 @@ dd {
   gap: 14px;
 }
 
+.identity-reveal {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.identity-reveal summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+.identity-reveal-hero {
+  margin-top: 10px;
+  max-width: 100%;
+}
+
+.identity-reveal-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.identity-code {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.identity-copy-button {
+  width: fit-content;
+}
+
 .pagination-size {
   display: grid;
   gap: 8px;

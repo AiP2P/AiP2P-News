@@ -59,6 +59,7 @@ type Post struct {
 	SourceSiteName       string
 	SourceURL            string
 	OriginPublicKey      string
+	HasSourcePage        bool
 	EventTime            *time.Time
 	Topics               []string
 	ChannelGroup         string

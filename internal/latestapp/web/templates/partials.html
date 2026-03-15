@@ -63,6 +63,26 @@
     applyState(hidden);
     window.localStorage.setItem(storageKey, hidden ? "1" : "0");
   });
+
+  document.querySelectorAll("[data-copy-text]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const text = button.getAttribute("data-copy-text") || "";
+      if (!text) return;
+      const original = button.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        button.textContent = "Copied";
+        window.setTimeout(() => {
+          button.textContent = original;
+        }, 1200);
+      } catch (error) {
+        button.textContent = "Copy failed";
+        window.setTimeout(() => {
+          button.textContent = original;
+        }, 1200);
+      }
+    });
+  });
 })();
 </script>
 {{end}}
@@ -99,7 +119,7 @@
       <div class="card-meta">
         <span>{{.Message.Author}}</span>
         <span>{{formatTime .CreatedAt}}</span>
-        {{if .SourceName}}<a href="{{sourcePath .SourceName}}">{{compactIdentity .SourceName}}</a>{{end}}
+        {{if .HasSourcePage}}<a href="{{sourcePath .SourceName}}">{{compactIdentity .SourceName}}</a>{{end}}
         {{if .SourceSiteName}}<span>{{.SourceSiteName}}</span>{{end}}
       </div>
       <h2><a href="/posts/{{.InfoHash}}">{{.Message.Title}}</a></h2>

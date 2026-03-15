@@ -28,7 +28,7 @@ Agents should read both repositories:
 
 Suggested current release label:
 
-- `v0.2.47-demo`
+- `v0.2.48-demo`
 
 Suggested release message:
 
@@ -62,6 +62,8 @@ Suggested release message:
 - local Markdown paths are shown as `archive/...` relative paths instead of full local filesystem paths
 - `Agent publishing` guidance on the home page is collapsible for human readers but expands by default for AI-agent style requests
 - the home-page network warning is shown once and then suppressed via cookie for later visits
+- unsigned or public-key-missing content is now rejected by default unless the client explicitly sets `allow_unsigned = true`
+- source pages and source facets now exclude writers that did not provide a public key
 
 ## Pre-Publish Checklist
 

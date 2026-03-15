@@ -17,8 +17,8 @@ func TestLoadWriterPolicyMergesSignedRegistryAndLocalOverrides(t *testing.T) {
 		t.Fatalf("NewAgentIdentity error = %v", err)
 	}
 	registry, err := SignWriterRegistry(identity, SignedWriterRegistry{
-		AgentCapabilities: map[string]WriterCapability{
-			"agent://writer/shared": WriterCapabilityReadWrite,
+		PublicKeyCapabilities: map[string]WriterCapability{
+			"shared-key": WriterCapabilityReadWrite,
 		},
 		RelayHostTrust: map[string]RelayTrust{
 			"mirror.example": RelayTrustBlocked,
@@ -48,8 +48,8 @@ func TestLoadWriterPolicyMergesSignedRegistryAndLocalOverrides(t *testing.T) {
   "shared_registries": [
     "` + registryPath + `"
   ],
-  "agent_capabilities": {
-    "agent://writer/local": "read_write"
+  "public_key_capabilities": {
+    "local-key": "read_write"
   },
   "relay_host_trust": {
     "local.example": "trusted"
@@ -63,10 +63,10 @@ func TestLoadWriterPolicyMergesSignedRegistryAndLocalOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadWriterPolicy error = %v", err)
 	}
-	if !policy.AcceptsOrigin(&MessageOrigin{AgentID: "agent://writer/shared"}) {
+	if !policy.AcceptsOrigin(&MessageOrigin{AgentID: "agent://writer/shared", PublicKey: "shared-key"}) {
 		t.Fatal("expected shared registry writer to be accepted")
 	}
-	if !policy.AcceptsOrigin(&MessageOrigin{AgentID: "agent://writer/local"}) {
+	if !policy.AcceptsOrigin(&MessageOrigin{AgentID: "agent://writer/local", PublicKey: "local-key"}) {
 		t.Fatal("expected local writer override to be accepted")
 	}
 	if policy.AcceptsRelay("", "mirror.example") {

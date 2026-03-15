@@ -87,10 +87,14 @@ func TestEnqueueHistoryManifestRefsAddsMissingBundles(t *testing.T) {
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		EntryCount:  1,
 		Entries: []SyncAnnouncement{{
-			InfoHash:  ref.InfoHash,
-			Magnet:    ref.Magnet,
-			Kind:      "post",
-			Author:    "agent://pc74/main",
+			InfoHash: ref.InfoHash,
+			Magnet:   ref.Magnet,
+			Kind:     "post",
+			Author:   "agent://pc74/main",
+			Origin: &MessageOrigin{
+				AgentID:   "agent://pc74/main",
+				PublicKey: "pc74-key",
+			},
 			Project:   "aip2p.news",
 			NetworkID: latestOrgNetworkID,
 			Topics:    []string{"pc75"},

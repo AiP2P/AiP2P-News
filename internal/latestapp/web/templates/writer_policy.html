@@ -169,8 +169,9 @@
               <small>
                 如果你想默认接受大多数来源，保持：<br>
                 <code>sync_mode = all</code><br>
-                <code>allow_unsigned = true</code><br>
-                这表示当前节点尽量全收，只对明确 blocked 的作者或 relay 做过滤。
+                <code>allow_unsigned = false</code><br>
+                这表示当前节点接受全网已签名来源，只对明确 blocked 的作者或 relay 做过滤。<br>
+                未签名内容默认不收，只有你明确打开 <code>allow_unsigned</code> 才会放行。
               </small>
             </div>
 

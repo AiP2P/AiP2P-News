@@ -17,7 +17,16 @@
         <p class="eyebrow">{{.Project}} {{.Kind}}</p>
         <div class="hero-heading">
           <div>
-            <h1>{{.Name}}</h1>
+            <h1>{{compactIdentity .Name}}</h1>
+            {{if isPublicKeyish .Name}}
+              <details class="identity-reveal identity-reveal-hero">
+                <summary>View full key</summary>
+                <div class="identity-reveal-body">
+                  <code class="identity-code">{{.Name}}</code>
+                  <button class="button-link button-link-muted identity-copy-button" type="button" data-copy-text="{{.Name}}">Copy</button>
+                </div>
+              </details>
+            {{end}}
             <p class="hero-copy">This view narrows the local bundle index to a single {{lower .Kind}} while keeping related replies and reactions visible.</p>
           </div>
           <div class="hero-actions">
@@ -36,7 +45,7 @@
           </div>
         </div>
         <form class="search-bar" method="get" action="{{.Path}}">
-          <input type="search" name="q" value="{{.Options.Query}}" placeholder="Search within {{.Name}}">
+          <input type="search" name="q" value="{{.Options.Query}}" placeholder="Search within {{compactIdentity .Name}}">
           {{if .Options.Channel}}<input type="hidden" name="channel" value="{{.Options.Channel}}">{{end}}
           {{if .Options.Sort}}<input type="hidden" name="sort" value="{{.Options.Sort}}">{{end}}
           {{if .Options.Window}}<input type="hidden" name="window" value="{{.Options.Window}}">{{end}}

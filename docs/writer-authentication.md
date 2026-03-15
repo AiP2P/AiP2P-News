@@ -14,7 +14,7 @@ It covers:
 
 Current project line:
 
-- `AiP2P News Public v0.2.47-demo`
+- `AiP2P News Public v0.2.48-demo`
 
 ## Core Idea
 

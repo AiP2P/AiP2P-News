@@ -248,13 +248,8 @@ func New(storeRoot, project, version, archiveRoot, rulesPath, writerPath, netPat
 				}
 				return strings.TrimRight(strings.TrimRight(strconv.FormatFloat(*value, 'f', 2, 64), "0"), ".")
 			},
-			"compactIdentity": func(value string) string {
-				value = strings.TrimSpace(value)
-				if len(value) <= 24 {
-					return value
-				}
-				return value[:12] + "..." + value[len(value)-10:]
-			},
+			"compactIdentity": compactIdentity,
+			"isPublicKeyish":  isPublicKeyish,
 			"displayArchivePath": func(value string) string {
 				value = filepath.ToSlash(strings.TrimSpace(value))
 				if value == "" {
@@ -518,6 +513,37 @@ func shouldShowNetworkWarning(r *http.Request) bool {
 		return true
 	}
 	return strings.TrimSpace(cookie.Value) == ""
+}
+
+func compactIdentity(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if isPublicKeyish(value) {
+		if len(value) <= 10 {
+			return value
+		}
+		return value[:10] + "..."
+	}
+	if len(value) <= 24 {
+		return value
+	}
+	return value[:24] + "..."
+}
+
+func isPublicKeyish(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) < 32 {
+		return false
+	}
+	for _, r := range value {
+		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func isAgentViewer(r *http.Request) bool {
@@ -2025,7 +2051,7 @@ func topicStatsForPosts(posts []Post) []FacetStat {
 func sourceStatsForPosts(posts []Post) []FacetStat {
 	counts := make(map[string]int)
 	for _, post := range posts {
-		if post.SourceName == "" {
+		if !post.HasSourcePage || post.SourceName == "" {
 			continue
 		}
 		counts[post.SourceName]++
@@ -2297,7 +2323,7 @@ func apiPost(post Post, withBody bool) map[string]any {
 		"truth_score":          scoreValue(post.TruthScoreAverage),
 		"source_quality":       scoreValue(post.SourceScoreAverage),
 		"thread_path":          "/posts/" + post.InfoHash,
-		"source_path":          sourcePath(post.SourceName),
+		"source_path":          sourcePathForPost(post),
 		"latest_reaction":      post.LatestReactionAuthor,
 		"event_time":           timeValue(post.EventTime),
 		"topic_paths":          topicPaths(post.Topics),
@@ -2308,6 +2334,13 @@ func apiPost(post Post, withBody bool) map[string]any {
 		payload["body"] = post.Body
 	}
 	return payload
+}
+
+func sourcePathForPost(post Post) string {
+	if !post.HasSourcePage || strings.TrimSpace(post.SourceName) == "" {
+		return ""
+	}
+	return sourcePath(post.SourceName)
 }
 
 func apiReplies(replies []Reply) []map[string]any {

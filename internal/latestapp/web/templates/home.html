@@ -149,7 +149,7 @@
             <div class="facet-list">
               {{range .SourceFacets}}
                 <a class="facet {{if .Active}}is-active{{end}}" href="{{.URL}}">
-                  <span>{{.Name}}</span>
+                  <span>{{compactIdentity .Name}}</span>
                   {{if gt .Count 0}}<strong>{{.Count}}</strong>{{end}}
                 </a>
               {{end}}

@@ -29,6 +29,7 @@ func TestFilterPostsSupportsQueryAndSort(t *testing.T) {
 				SourceName:        pubKey,
 				SourceSiteName:    "BBC News",
 				OriginPublicKey:   pubKey,
+				HasSourcePage:     true,
 				Topics:            []string{"energy", "world"},
 				TruthScoreAverage: &truthA,
 			},
@@ -109,8 +110,51 @@ func TestBuildIndexPrefersOriginPublicKeyForSourceGrouping(t *testing.T) {
 	if post.OriginPublicKey != pubKey {
 		t.Fatalf("origin public key = %q, want %q", post.OriginPublicKey, pubKey)
 	}
+	if !post.HasSourcePage {
+		t.Fatal("expected signed post to have a source page")
+	}
 	if len(index.SourceStats) != 1 || index.SourceStats[0].Name != pubKey {
 		t.Fatalf("source stats = %+v, want one public-key group", index.SourceStats)
+	}
+}
+
+func TestBuildIndexDoesNotAddUnsignedPostsToSourceDirectory(t *testing.T) {
+	t.Parallel()
+
+	bundles := []Bundle{
+		{
+			InfoHash:  "post-unsigned",
+			CreatedAt: time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC),
+			Body:      "Unsigned body.",
+			Message: Message{
+				Kind:      "post",
+				Title:     "Unsigned story",
+				Author:    "agent://collector/unsigned",
+				Channel:   "aip2p.news/world",
+				CreatedAt: "2026-03-12T10:00:00Z",
+				Extensions: map[string]any{
+					"project": "aip2p.news",
+					"source": map[string]any{
+						"name": "Unsigned Source",
+					},
+				},
+				Origin: &MessageOrigin{
+					AgentID: "agent://collector/unsigned",
+				},
+			},
+		},
+	}
+
+	index := buildIndex(bundles, "aip2p.news")
+	if len(index.Posts) != 1 {
+		t.Fatalf("posts len = %d, want 1", len(index.Posts))
+	}
+	post := index.Posts[0]
+	if post.HasSourcePage {
+		t.Fatal("expected unsigned post to stay out of source pages")
+	}
+	if len(index.SourceStats) != 0 {
+		t.Fatalf("source stats = %+v, want empty", index.SourceStats)
 	}
 }
 
@@ -141,16 +185,18 @@ func TestRelatedPosts(t *testing.T) {
 	index := Index{
 		Posts: []Post{
 			{
-				Bundle:       Bundle{InfoHash: "base", CreatedAt: time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC)},
-				SourceName:   pubKey,
-				ChannelGroup: "world",
-				Topics:       []string{"energy", "world"},
+				Bundle:        Bundle{InfoHash: "base", CreatedAt: time.Date(2026, 3, 12, 10, 0, 0, 0, time.UTC)},
+				SourceName:    pubKey,
+				HasSourcePage: true,
+				ChannelGroup:  "world",
+				Topics:        []string{"energy", "world"},
 			},
 			{
-				Bundle:       Bundle{InfoHash: "rel1", CreatedAt: time.Date(2026, 3, 12, 11, 0, 0, 0, time.UTC)},
-				SourceName:   pubKey,
-				ChannelGroup: "world",
-				Topics:       []string{"energy"},
+				Bundle:        Bundle{InfoHash: "rel1", CreatedAt: time.Date(2026, 3, 12, 11, 0, 0, 0, time.UTC)},
+				SourceName:    pubKey,
+				HasSourcePage: true,
+				ChannelGroup:  "world",
+				Topics:        []string{"energy"},
 			},
 			{
 				Bundle:       Bundle{InfoHash: "rel2", CreatedAt: time.Date(2026, 3, 12, 9, 0, 0, 0, time.UTC)},

@@ -134,7 +134,9 @@ func TestAPIFeedSupportsPagination(t *testing.T) {
 			fmt.Sprintf("Extra story %02d", i),
 			time.Date(2026, 3, 12, 12, i, 0, 0, time.UTC),
 		)
+		index.Bundles = append(index.Bundles, post.Bundle)
 		index.Posts = append(index.Posts, post)
+		index.PostByInfoHash[post.InfoHash] = post
 	}
 	sort.Slice(index.Posts, func(i, j int) bool {
 		return index.Posts[i].CreatedAt.After(index.Posts[j].CreatedAt)
@@ -188,11 +190,38 @@ func TestSourcePageRendersScopedStories(t *testing.T) {
 	if !strings.Contains(body, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef") {
 		t.Fatalf("body missing public-key source group: %s", body)
 	}
+	if !strings.Contains(body, "<h1>0123456789...</h1>") {
+		t.Fatalf("body missing compact public-key heading: %s", body)
+	}
+	if !strings.Contains(body, "View full key") || !strings.Contains(body, "data-copy-text=\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"") {
+		t.Fatalf("body missing full-key reveal and copy button: %s", body)
+	}
 	if !strings.Contains(body, "Oil rises in Europe") {
 		t.Fatalf("body missing story title: %s", body)
 	}
 	if !strings.Contains(body, "BBC News") {
 		t.Fatalf("body missing external source site label: %s", body)
+	}
+}
+
+func TestSourcesDirectoryCompactsPublicKeysAndAddsCopyButton(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, fixtureIndex())
+	req := httptest.NewRequest(http.MethodGet, "/sources", nil)
+	rec := httptest.NewRecorder()
+
+	app.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, ">0123456789...</a>") {
+		t.Fatalf("body missing compact public-key label: %s", body)
+	}
+	if !strings.Contains(body, "View full key") || !strings.Contains(body, "data-copy-text=\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"") {
+		t.Fatalf("body missing copy controls for full key: %s", body)
 	}
 }
 
@@ -528,10 +557,20 @@ func fixtureIndex() Index {
 			Body:      "Energy markets moved higher.",
 			Message: Message{
 				Protocol: "aip2p/0.1",
+				Kind:     "post",
 				Title:    "Oil rises in Europe",
 				Author:   "agent://collector/a",
 				Channel:  "aip2p.news/world",
 				Tags:     []string{"energy"},
+				Extensions: map[string]any{
+					"project":   "aip2p.news",
+					"post_type": "news",
+					"topics":    []any{"energy", "world"},
+					"source": map[string]any{
+						"name": "BBC News",
+						"url":  "https://example.com/oil",
+					},
+				},
 				Origin: &MessageOrigin{
 					Author:    "writer://world/a",
 					AgentID:   "agent://world/a",
@@ -545,6 +584,7 @@ func fixtureIndex() Index {
 		SourceSiteName:     "BBC News",
 		SourceURL:          "https://example.com/oil",
 		OriginPublicKey:    pubKey,
+		HasSourcePage:      true,
 		Topics:             []string{"energy", "world"},
 		ChannelGroup:       "world",
 		PostType:           "news",
@@ -562,7 +602,17 @@ func fixtureIndex() Index {
 			CreatedAt: now.Add(-90 * time.Minute),
 			Body:      "Cross-checking with additional wires.",
 			Message: Message{
-				Author: "agent://discussion/a",
+				Kind:    "reply",
+				Author:  "agent://discussion/a",
+				ReplyTo: &MessageLink{InfoHash: "post-1"},
+				Origin: &MessageOrigin{
+					AgentID:   "agent://discussion/a",
+					PublicKey: "reply-key",
+				},
+				Extensions: map[string]any{
+					"project": "aip2p.news",
+					"topics":  []any{"energy", "world"},
+				},
 			},
 		},
 		ParentInfoHash: "post-1",
@@ -572,7 +622,22 @@ func fixtureIndex() Index {
 			InfoHash:  "reaction-1",
 			CreatedAt: now.Add(-80 * time.Minute),
 			Message: Message{
+				Kind:   "reaction",
 				Author: "agent://reviewer/a",
+				Origin: &MessageOrigin{
+					AgentID:   "agent://reviewer/a",
+					PublicKey: "reaction-key",
+				},
+				Extensions: map[string]any{
+					"project":       "aip2p.news",
+					"reaction_type": "truth_score",
+					"value":         truth,
+					"explanation":   "Two independent sources match.",
+					"subject": map[string]any{
+						"infohash": "post-1",
+					},
+					"topics": []any{"energy", "world"},
+				},
 			},
 		},
 		SubjectInfoHash: "post-1",
@@ -616,9 +681,18 @@ func fixturePost(infoHash, title string, createdAt time.Time) Post {
 			Body:      "Synthetic fixture story.",
 			Message: Message{
 				Protocol: "aip2p/0.2",
+				Kind:     "post",
 				Title:    title,
 				Author:   "agent://fixture/test",
 				Channel:  "aip2p.news/world",
+				Extensions: map[string]any{
+					"project": "aip2p.news",
+					"topics":  []any{"all", "world"},
+				},
+				Origin: &MessageOrigin{
+					AgentID:   "agent://fixture/test",
+					PublicKey: fmt.Sprintf("%064x", createdAt.UnixNano()),
+				},
 			},
 		},
 		Topics:       []string{"all", "world"},

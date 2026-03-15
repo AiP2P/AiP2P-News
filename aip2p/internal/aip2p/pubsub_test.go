@@ -67,6 +67,10 @@ func TestMatchesAnnouncement(t *testing.T) {
 		NetworkID: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		Topics:    []string{"world", "pc75"},
 		Tags:      []string{"breaking"},
+		Origin: &MessageOrigin{
+			AgentID:   "agent://writer/test",
+			PublicKey: "test-key",
+		},
 	}
 	policy := defaultWriterPolicy()
 	if !matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"pc75"}}, policy, DelegationStore{}) {
@@ -91,6 +95,10 @@ func TestMatchesAnnouncementFiltersByMaxAgeDays(t *testing.T) {
 		Channel:   "aip2p.news/world",
 		CreatedAt: now.Add(-48 * time.Hour).Format(time.RFC3339),
 		Topics:    []string{"world", "pc75"},
+		Origin: &MessageOrigin{
+			AgentID:   "agent://writer/test",
+			PublicKey: "test-key",
+		},
 	}
 	policy := defaultWriterPolicy()
 	if matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxAgeDays: 1}, policy, DelegationStore{}) {
@@ -107,6 +115,10 @@ func TestMatchesAnnouncementFiltersByMaxBundleMB(t *testing.T) {
 	announcement := SyncAnnouncement{
 		SizeBytes: 12 * 1024 * 1024,
 		Topics:    []string{"world"},
+		Origin: &MessageOrigin{
+			AgentID:   "agent://writer/test",
+			PublicKey: "test-key",
+		},
 	}
 	policy := defaultWriterPolicy()
 	if matchesAnnouncement(announcement, SyncSubscriptions{Topics: []string{"all"}, MaxBundleMB: 10}, policy, DelegationStore{}) {

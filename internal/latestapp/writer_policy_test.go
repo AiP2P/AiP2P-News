@@ -84,12 +84,12 @@ func TestWriterPolicyCapabilityPrefersExplicitMap(t *testing.T) {
 		SyncMode:          WriterSyncModeMixed,
 		AllowUnsigned:     false,
 		DefaultCapability: WriterCapabilityReadOnly,
-		AgentCapabilities: map[string]WriterCapability{
-			"agent://writer/allowed": WriterCapabilityReadWrite,
+		PublicKeyCapabilities: map[string]WriterCapability{
+			"allowed-key": WriterCapabilityReadWrite,
 		},
 	}
-	allowed := &MessageOrigin{AgentID: "agent://writer/allowed"}
-	denied := &MessageOrigin{AgentID: "agent://writer/other"}
+	allowed := &MessageOrigin{AgentID: "agent://writer/allowed", PublicKey: "allowed-key"}
+	denied := &MessageOrigin{AgentID: "agent://writer/other", PublicKey: "other-key"}
 
 	if !policy.allowsOrigin(allowed) {
 		t.Fatal("expected explicit read_write writer to be accepted")
@@ -148,7 +148,7 @@ func TestApplyWriterPolicyWhitelistAcceptsOnlyExplicitWriters(t *testing.T) {
 	}
 }
 
-func TestApplyWriterPolicyAllModeKeepsReadOnlyWritersUnlessBlocked(t *testing.T) {
+func TestApplyWriterPolicyAllModeKeepsSignedReadOnlyWritersUnlessBlocked(t *testing.T) {
 	t.Parallel()
 
 	postReadOnly := Bundle{
@@ -194,6 +194,71 @@ func TestApplyWriterPolicyAllModeKeepsReadOnlyWritersUnlessBlocked(t *testing.T)
 	}
 }
 
+func TestApplyWriterPolicyAllModeRejectsUnsignedByDefault(t *testing.T) {
+	t.Parallel()
+
+	unsignedPost := Bundle{
+		InfoHash: "post-unsigned",
+		Message: Message{
+			Kind:   "post",
+			Title:  "Unsigned",
+			Author: "agent://writer/unsigned",
+			Extensions: map[string]any{
+				"project": "aip2p.news",
+				"topics":  []any{"all", "world"},
+			},
+		},
+	}
+	noKeyPost := Bundle{
+		InfoHash: "post-no-key",
+		Message: Message{
+			Kind:   "post",
+			Title:  "No key",
+			Author: "agent://writer/no-key",
+			Origin: &MessageOrigin{
+				AgentID: "agent://writer/no-key",
+			},
+			Extensions: map[string]any{
+				"project": "aip2p.news",
+				"topics":  []any{"all", "world"},
+			},
+		},
+	}
+
+	index := buildIndex([]Bundle{unsignedPost, noKeyPost}, "aip2p.news")
+	policy := WriterPolicy{
+		SyncMode:          WriterSyncModeAll,
+		AllowUnsigned:     false,
+		DefaultCapability: WriterCapabilityReadWrite,
+	}
+
+	filtered := ApplyWriterPolicy(index, "aip2p.news", policy)
+	if len(filtered.Posts) != 0 {
+		t.Fatalf("posts len = %d, want 0", len(filtered.Posts))
+	}
+}
+
+func TestWriterPolicyOriginWithoutPublicKeyCountsAsUnsigned(t *testing.T) {
+	t.Parallel()
+
+	policy := WriterPolicy{
+		SyncMode:          WriterSyncModeAll,
+		AllowUnsigned:     false,
+		DefaultCapability: WriterCapabilityReadWrite,
+		AgentCapabilities: map[string]WriterCapability{
+			"agent://writer/legacy": WriterCapabilityReadWrite,
+		},
+	}
+	legacy := &MessageOrigin{AgentID: "agent://writer/legacy"}
+
+	if policy.capabilityForOrigin(legacy) != WriterCapabilityBlocked {
+		t.Fatalf("capability = %q, want blocked", policy.capabilityForOrigin(legacy))
+	}
+	if policy.acceptsOrigin(legacy) {
+		t.Fatal("expected origin without public key to be treated as unsigned and rejected")
+	}
+}
+
 func TestLoadWriterPolicyMergesSharedRegistry(t *testing.T) {
 	t.Parallel()
 
@@ -207,8 +272,8 @@ func TestLoadWriterPolicyMergesSharedRegistry(t *testing.T) {
 		KeyType:     latestAppKeyTypeEd25519,
 		PublicKey:   hex.EncodeToString(publicKey),
 		SignedAt:    "2026-03-15T00:00:00Z",
-		AgentCapabilities: map[string]WriterCapability{
-			"agent://writer/shared": WriterCapabilityReadWrite,
+		PublicKeyCapabilities: map[string]WriterCapability{
+			"shared-key": WriterCapabilityReadWrite,
 		},
 		RelayHostTrust: map[string]RelayTrust{
 			"mirror.example": RelayTrustBlocked,
@@ -250,7 +315,7 @@ func TestLoadWriterPolicyMergesSharedRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadWriterPolicy error = %v", err)
 	}
-	if !policy.acceptsOrigin(&MessageOrigin{AgentID: "agent://writer/shared"}) {
+	if !policy.acceptsOrigin(&MessageOrigin{AgentID: "agent://writer/shared", PublicKey: "shared-key"}) {
 		t.Fatal("expected shared registry capability to be merged")
 	}
 	if policy.acceptsRelay("", "mirror.example") {

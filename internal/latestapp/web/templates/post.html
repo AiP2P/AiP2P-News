@@ -24,7 +24,7 @@
           <div class="story-meta">
             <span>{{.Post.Message.Author}}</span>
             <span>{{formatTime .Post.CreatedAt}}</span>
-            {{if .Post.SourceName}}<a href="{{sourcePath .Post.SourceName}}">{{compactIdentity .Post.SourceName}}</a>{{end}}
+            {{if .Post.HasSourcePage}}<a href="{{sourcePath .Post.SourceName}}">{{compactIdentity .Post.SourceName}}</a>{{end}}
             {{if .Post.SourceSiteName}}<span>{{.Post.SourceSiteName}}</span>{{end}}
           </div>
           <p class="story-body">{{.Post.Body}}</p>
@@ -97,7 +97,7 @@
             {{if .Post.SourceURL}}
               <a href="{{.Post.SourceURL}}" target="_blank" rel="noreferrer">Open source article</a>
             {{end}}
-            {{if .Post.SourceName}}
+            {{if .Post.HasSourcePage}}
               <a href="{{sourcePath .Post.SourceName}}">Source page</a>
             {{end}}
             {{if .Post.Topics}}
@@ -149,7 +149,7 @@
                 {{range .Related}}
                   <article class="related-card">
                     <div class="card-meta">
-                      <a href="{{sourcePath .SourceName}}">{{compactIdentity .SourceName}}</a>
+                      {{if .HasSourcePage}}<a href="{{sourcePath .SourceName}}">{{compactIdentity .SourceName}}</a>{{else}}<span>{{.SourceSiteName}}</span>{{end}}
                       <span>{{formatTime .CreatedAt}}</span>
                     </div>
                     <a class="related-link" href="/posts/{{.InfoHash}}">{{.Message.Title}}</a>

@@ -37,11 +37,11 @@ func TestWriterPolicyLegacyAllowListStillWhitelists(t *testing.T) {
 
 	policy := WriterPolicy{
 		SyncMode:        WriterSyncModeWhitelist,
-		AllowUnsigned:   true,
+		AllowUnsigned:   false,
 		AllowedAgentIDs: []string{"agent://writer/allowed"},
 	}
-	allowed := &MessageOrigin{AgentID: "agent://writer/allowed"}
-	denied := &MessageOrigin{AgentID: "agent://writer/other"}
+	allowed := &MessageOrigin{AgentID: "agent://writer/allowed", PublicKey: "allowed-key"}
+	denied := &MessageOrigin{AgentID: "agent://writer/other", PublicKey: "other-key"}
 
 	if !policy.AcceptsOrigin(allowed) {
 		t.Fatal("expected legacy allow-list writer to be accepted")
@@ -77,9 +77,14 @@ func TestWriterPolicyBlockedListsOverrideExplicitWriteCapability(t *testing.T) {
 func TestWriterPolicyUnsignedUsesAllowUnsignedAndDefaultCapability(t *testing.T) {
 	t.Parallel()
 
+	closed := WriterPolicy{SyncMode: WriterSyncModeAll, AllowUnsigned: false, DefaultCapability: WriterCapabilityReadWrite}
+	if closed.AcceptsOrigin(nil) {
+		t.Fatal("expected unsigned writer to be rejected by default")
+	}
+
 	open := WriterPolicy{SyncMode: WriterSyncModeAll, AllowUnsigned: true, DefaultCapability: WriterCapabilityReadWrite}
 	if !open.AcceptsOrigin(nil) {
-		t.Fatal("expected unsigned writer to be accepted when allowed")
+		t.Fatal("expected unsigned writer to be accepted when explicitly allowed")
 	}
 
 	restricted := WriterPolicy{SyncMode: WriterSyncModeMixed, AllowUnsigned: true, DefaultCapability: WriterCapabilityReadOnly}
@@ -87,16 +92,16 @@ func TestWriterPolicyUnsignedUsesAllowUnsignedAndDefaultCapability(t *testing.T)
 		t.Fatalf("unsigned capability = %q, want read_only", restricted.CapabilityForOrigin(nil))
 	}
 	if !restricted.AcceptsOrigin(nil) {
-		t.Fatal("expected unsigned writer to be accepted in mixed mode when allow_unsigned is true")
+		t.Fatal("expected unsigned writer to be accepted in mixed mode when explicitly allowed")
 	}
 
 	trustedOnly := WriterPolicy{SyncMode: WriterSyncModeTrustedWritersOnly, AllowUnsigned: true, DefaultCapability: WriterCapabilityReadWrite}
-	if trustedOnly.AcceptsOrigin(nil) {
-		t.Fatal("expected unsigned writer to be rejected in trusted_writers_only mode")
+	if !trustedOnly.AcceptsOrigin(nil) {
+		t.Fatal("expected allow_unsigned to override sync mode for unsigned content")
 	}
 }
 
-func TestWriterPolicySyncModeAllAcceptsReadOnlyWritersButStillBlocksBlockedOnes(t *testing.T) {
+func TestWriterPolicySyncModeAllAcceptsSignedReadOnlyWritersButStillBlocksBlockedOnes(t *testing.T) {
 	t.Parallel()
 
 	policy := WriterPolicy{
@@ -115,18 +120,39 @@ func TestWriterPolicySyncModeAllAcceptsReadOnlyWritersButStillBlocksBlockedOnes(
 	}
 }
 
+func TestWriterPolicyOriginWithoutPublicKeyCountsAsUnsigned(t *testing.T) {
+	t.Parallel()
+
+	policy := WriterPolicy{
+		SyncMode:          WriterSyncModeAll,
+		AllowUnsigned:     false,
+		DefaultCapability: WriterCapabilityReadWrite,
+		AgentCapabilities: map[string]WriterCapability{
+			"agent://writer/legacy": WriterCapabilityReadWrite,
+		},
+	}
+	legacy := &MessageOrigin{AgentID: "agent://writer/legacy"}
+
+	if policy.CapabilityForOrigin(legacy) != WriterCapabilityBlocked {
+		t.Fatalf("capability = %q, want blocked", policy.CapabilityForOrigin(legacy))
+	}
+	if policy.AcceptsOrigin(legacy) {
+		t.Fatal("expected origin without public key to be treated as unsigned and rejected")
+	}
+}
+
 func TestWriterPolicyTrustedWritersOnlyRequiresReadWriteCapability(t *testing.T) {
 	t.Parallel()
 
 	policy := WriterPolicy{
 		SyncMode:          WriterSyncModeTrustedWritersOnly,
 		DefaultCapability: WriterCapabilityReadOnly,
-		AgentCapabilities: map[string]WriterCapability{
-			"agent://writer/trusted": WriterCapabilityReadWrite,
+		PublicKeyCapabilities: map[string]WriterCapability{
+			"trusted-key": WriterCapabilityReadWrite,
 		},
 	}
-	trusted := &MessageOrigin{AgentID: "agent://writer/trusted"}
-	untrusted := &MessageOrigin{AgentID: "agent://writer/readonly"}
+	trusted := &MessageOrigin{AgentID: "agent://writer/trusted", PublicKey: "trusted-key"}
+	untrusted := &MessageOrigin{AgentID: "agent://writer/readonly", PublicKey: "readonly-key"}
 
 	if !policy.AcceptsOrigin(trusted) {
 		t.Fatal("expected trusted writer to be accepted")

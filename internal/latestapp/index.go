@@ -179,6 +179,7 @@ func buildIndex(bundles []Bundle, project string) Index {
 				SourceSiteName:  nestedString(bundle.Message.Extensions, "source", "name"),
 				SourceURL:       nestedString(bundle.Message.Extensions, "source", "url"),
 				OriginPublicKey: originPublicKey(bundle.Message),
+				HasSourcePage:   hasSourcePage(bundle.Message),
 				Topics:          stringSlice(bundle.Message.Extensions["topics"]),
 				ChannelGroup:    channelGroup(bundle.Message.Channel),
 				PostType:        stringValue(bundle.Message.Extensions["post_type"]),
@@ -194,7 +195,7 @@ func buildIndex(bundles []Bundle, project string) Index {
 			for _, topic := range post.Topics {
 				topicCounts[topic]++
 			}
-			if post.SourceName != "" {
+			if post.HasSourcePage && post.SourceName != "" {
 				sourceCounts[post.SourceName]++
 			}
 		case "reply":
@@ -576,6 +577,10 @@ func originPublicKey(msg Message) string {
 		return ""
 	}
 	return strings.TrimSpace(msg.Origin.PublicKey)
+}
+
+func hasSourcePage(msg Message) bool {
+	return originPublicKey(msg) != ""
 }
 
 func containsFold(items []string, target string) bool {

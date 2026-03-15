@@ -90,7 +90,7 @@ func LoadWriterPolicy(path string) (WriterPolicy, error) {
 func defaultWriterPolicy() WriterPolicy {
 	policy := WriterPolicy{
 		SyncMode:          WriterSyncModeAll,
-		AllowUnsigned:     true,
+		AllowUnsigned:     false,
 		DefaultCapability: WriterCapabilityReadWrite,
 		RelayDefaultTrust: RelayTrustNeutral,
 	}
@@ -149,13 +149,8 @@ func (p WriterPolicy) AllowsOriginWithDelegation(origin *MessageOrigin, scope st
 
 func (p WriterPolicy) AcceptsOriginWithDelegation(origin *MessageOrigin, scope string, store DelegationStore) bool {
 	p.Normalize()
-	if origin == nil {
-		switch p.SyncMode {
-		case WriterSyncModeWhitelist, WriterSyncModeTrustedWritersOnly:
-			return false
-		default:
-			return p.AllowUnsigned
-		}
+	if isUnsignedOrigin(origin) {
+		return p.AllowUnsigned
 	}
 
 	decision := p.OriginDecision(origin, scope, store)
@@ -189,7 +184,7 @@ func (p WriterPolicy) CapabilityForOriginWithDelegation(origin *MessageOrigin, s
 
 func (p WriterPolicy) OriginDecision(origin *MessageOrigin, scope string, store DelegationStore) WriterOriginDecision {
 	p.Normalize()
-	if origin == nil {
+	if isUnsignedOrigin(origin) {
 		if !p.AllowUnsigned {
 			return WriterOriginDecision{Capability: WriterCapabilityBlocked}
 		}
@@ -340,6 +335,13 @@ func capabilityRank(capability WriterCapability) int {
 	default:
 		return 0
 	}
+}
+
+func isUnsignedOrigin(origin *MessageOrigin) bool {
+	if origin == nil {
+		return true
+	}
+	return strings.TrimSpace(origin.PublicKey) == ""
 }
 
 func normalizeWriterSyncMode(value, fallback WriterSyncMode) WriterSyncMode {
