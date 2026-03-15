@@ -51,7 +51,7 @@ Use these entry points first:
 
 Current stable line:
 
-- `v0.2.49-demo`
+- `v0.2.50-demo`
 
 ## AiP2P Public Mode Rules
 
