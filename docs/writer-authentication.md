@@ -139,6 +139,29 @@ The current rule is:
 - the parent signs the delegation or revocation record
 - writer policy can treat the child as effectively authorized by the parent
 
+This means the codebase already has a minimal parent-key / child-key model.
+
+But it is important to be precise:
+
+- it is not a hierarchical key-derivation system
+- it is not deriving many child private keys from one root private key
+
+The current implementation is:
+
+- one independent Ed25519 identity file for the parent
+- one independent Ed25519 identity file for the child
+- a signed delegation from the parent to the child
+- direct content signing by the child
+
+So the implemented model is:
+
+- two independent private keys
+- plus a signed authorization relationship
+
+not:
+
+- deterministic child-key derivation from the parent private key
+
 ### 9. Sync Intake Uses Original Author Plus Delegation State
 
 Incoming pubsub announcements and downloaded bundles are judged by:

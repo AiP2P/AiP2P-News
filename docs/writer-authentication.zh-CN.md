@@ -158,6 +158,28 @@
 - 节点会检查 child 当前是否存在有效 delegation
 - 如果 child 已被本地显式降成 `read_only` 或 `blocked`，parent 不会把它重新提权
 
+这也意味着：代码层已经实现了“主私钥 / 子私钥”的最小版模型。
+
+但要注意，当前实现不是：
+
+- 从一个主私钥自动派生很多子私钥
+
+当前实现是：
+
+- parent 有自己独立的 Ed25519 身份文件和私钥
+- child 也有自己独立的 Ed25519 身份文件和私钥
+- parent 用自己的私钥给 child 签 `writer_delegation`
+- child 用自己的私钥直接签 post / reply
+
+所以更准确地说，当前已经实现的是：
+
+- 两套独立私钥
+- 一条签名授权关系
+
+而不是：
+
+- 分层派生私钥体系
+
 默认目录：
 
 - `~/.aip2p-news/delegations`

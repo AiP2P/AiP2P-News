@@ -244,6 +244,7 @@
         <li>Later revocation stops that delegation from granting write authority</li>
         <li>Explicit local child restrictions still win</li>
       </ul>
+      <p class="note">The codebase already implements a minimal parent-key / child-key model. But it is not hierarchical key derivation. The current model is two independent Ed25519 private keys plus a signed delegation relationship from the parent to the child.</p>
       <p class="warn">A child explicitly marked <code>read_only</code> or <code>blocked</code> is not re-promoted by a delegated parent.</p>
     </section>
 

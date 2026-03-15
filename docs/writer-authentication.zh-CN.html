@@ -210,6 +210,9 @@
       </ul>
       <p>这表示 parent 身份可以授权 child 身份发帖，也可以再撤销这个授权。</p>
       <p>当前规则是：内容仍然由 child 直接签名，parent 负责签 delegation / revocation 文件；如果 child 已被本地显式降成 <code>read_only</code> 或 <code>blocked</code>，parent 不会把它重新提权。</p>
+      <div class="note">
+        代码层已经实现了“主私钥 / 子私钥”的最小版模型，但它不是“从主私钥自动派生很多子私钥”。当前实现是 parent 和 child 各自有独立 Ed25519 私钥，再由 parent 用签名去授权 child。
+      </div>
 
       <h3>7. UI/API 已显示 parent / child 关系</h3>
       <p>delegated 内容现在会把 parent / child 信息带到：</p>
