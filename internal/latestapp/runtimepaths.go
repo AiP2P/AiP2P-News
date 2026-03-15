@@ -14,7 +14,7 @@ const defaultLANPeer = "192.168.102.74"
 const projectSyncBinaryName = "aip2p-news-syncd"
 
 const defaultSubscriptionsJSON = "{\n  \"channels\": [],\n  \"topics\": [\"all\"],\n  \"tags\": [],\n  \"max_age_days\": 99999999,\n  \"max_bundle_mb\": 10,\n  \"max_items_per_day\": 999999999999\n}\n"
-const defaultWriterPolicyJSON = "{\n  \"allow_unsigned\": true,\n  \"allowed_agent_ids\": [],\n  \"allowed_public_keys\": [],\n  \"blocked_agent_ids\": [],\n  \"blocked_public_keys\": []\n}\n"
+const defaultWriterPolicyJSON = "{\n  \"sync_mode\": \"mixed\",\n  \"allow_unsigned\": true,\n  \"default_capability\": \"read_write\",\n  \"trusted_authorities\": {},\n  \"shared_registries\": [],\n  \"relay_default_trust\": \"neutral\",\n  \"relay_peer_trust\": {},\n  \"relay_host_trust\": {},\n  \"agent_capabilities\": {},\n  \"public_key_capabilities\": {},\n  \"allowed_agent_ids\": [],\n  \"allowed_public_keys\": [],\n  \"blocked_agent_ids\": [],\n  \"blocked_public_keys\": []\n}\n"
 
 const defaultTrackerListINF = `# Trackerlist.inf
 # One tracker URI per line. Lines starting with #, ;, or // are ignored.
@@ -162,18 +162,18 @@ dht_router=dht.transmissionbt.com:6881
 }
 
 type RuntimePaths struct {
-	Root        string
-	BinRoot     string
-	StoreRoot   string
-	ArchiveRoot string
-	RulesPath   string
-	WriterPolicyPath string
-	NetPath     string
-	TrackerPath string
-	StatusPath  string
-	MagnetsPath string
-	SyncLogPath string
-	SyncBinPath string
+	Root                string
+	BinRoot             string
+	StoreRoot           string
+	ArchiveRoot         string
+	RulesPath           string
+	WriterPolicyPath    string
+	NetPath             string
+	TrackerPath         string
+	StatusPath          string
+	MagnetsPath         string
+	SyncLogPath         string
+	SyncBinPath         string
 	SupervisorStatePath string
 }
 
@@ -194,18 +194,18 @@ func DefaultRuntimePathsFromHome(home string) RuntimePaths {
 	storeRoot := filepath.Join(root, "aip2p", ".aip2p")
 	binRoot := filepath.Join(root, "bin")
 	return RuntimePaths{
-		Root:        root,
-		BinRoot:     binRoot,
-		StoreRoot:   storeRoot,
-		ArchiveRoot: filepath.Join(root, "archive"),
-		RulesPath:   filepath.Join(root, "subscriptions.json"),
-		WriterPolicyPath: filepath.Join(root, "writer_policy.json"),
-		NetPath:     filepath.Join(root, "aip2p_news_net.inf"),
-		TrackerPath: filepath.Join(root, "Trackerlist.inf"),
-		StatusPath:  filepath.Join(storeRoot, "sync", "status.json"),
-		MagnetsPath: filepath.Join(storeRoot, "sync", "magnets.txt"),
-		SyncLogPath: filepath.Join(root, "aip2p-news-sync.log"),
-		SyncBinPath: filepath.Join(binRoot, projectSyncBinaryName+platformExecutableSuffix()),
+		Root:                root,
+		BinRoot:             binRoot,
+		StoreRoot:           storeRoot,
+		ArchiveRoot:         filepath.Join(root, "archive"),
+		RulesPath:           filepath.Join(root, "subscriptions.json"),
+		WriterPolicyPath:    filepath.Join(root, "writer_policy.json"),
+		NetPath:             filepath.Join(root, "aip2p_news_net.inf"),
+		TrackerPath:         filepath.Join(root, "Trackerlist.inf"),
+		StatusPath:          filepath.Join(storeRoot, "sync", "status.json"),
+		MagnetsPath:         filepath.Join(storeRoot, "sync", "magnets.txt"),
+		SyncLogPath:         filepath.Join(root, "aip2p-news-sync.log"),
+		SyncBinPath:         filepath.Join(binRoot, projectSyncBinaryName+platformExecutableSuffix()),
 		SupervisorStatePath: filepath.Join(root, "sync-supervisor.json"),
 	}
 }

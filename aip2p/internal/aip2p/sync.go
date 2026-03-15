@@ -283,12 +283,20 @@ func (r *syncRuntime) refreshWriterPolicy(logf func(string, ...any)) error {
 	r.writerPolicy = policy
 	if logf != nil && !policy.Empty() {
 		logf(
-			"writer policy loaded: allow_unsigned=%t allowed_agents=%d allowed_keys=%d blocked_agents=%d blocked_keys=%d",
+			"writer policy loaded: sync_mode=%s allow_unsigned=%t default_capability=%s agent_caps=%d key_caps=%d allowed_agents=%d allowed_keys=%d blocked_agents=%d blocked_keys=%d shared_registries=%d trusted_authorities=%d relay_peers=%d relay_hosts=%d",
+			policy.SyncMode,
 			policy.AllowUnsigned,
+			policy.DefaultCapability,
+			len(policy.AgentCapabilities),
+			len(policy.PublicKeyCapabilities),
 			len(policy.AllowedAgentIDs),
 			len(policy.AllowedPublicKeys),
 			len(policy.BlockedAgentIDs),
 			len(policy.BlockedPublicKeys),
+			len(policy.SharedRegistries),
+			len(policy.TrustedAuthorities),
+			len(policy.RelayPeerTrust),
+			len(policy.RelayHostTrust),
 		)
 	}
 	return nil
@@ -407,11 +415,11 @@ func (r *syncRuntime) announceLocalBundles(ctx context.Context, logf func(string
 		if announcement.NetworkID == "" {
 			announcement.NetworkID = r.netCfg.NetworkID
 		}
-		if !r.writerPolicy.AllowsOrigin(announcement.Origin) {
+		alwaysPublish := strings.EqualFold(announcement.Kind, historyManifestKind)
+		if !alwaysPublish && !r.writerPolicy.AcceptsOrigin(announcement.Origin) {
 			continue
 		}
 		announcement.Magnet = withPeerHints(announcement.Magnet, r.torrentClient.ListenAddrs(), r.netCfg.LANPeers)
-		alwaysPublish := strings.EqualFold(announcement.Kind, historyManifestKind)
 		if !alwaysPublish {
 			r.mu.Lock()
 			_, seen := r.announced[announcement.InfoHash]
@@ -446,11 +454,35 @@ func (r *syncRuntime) seedLocalTorrents(logf func(string, ...any)) error {
 	if err != nil {
 		return err
 	}
+	active := make(map[string]*torrent.Torrent)
+	for _, t := range r.torrentClient.Torrents() {
+		active[strings.ToLower(t.InfoHash().HexString())] = t
+	}
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".torrent" {
 			continue
 		}
 		infoHash := strings.ToLower(strings.TrimSuffix(entry.Name(), ".torrent"))
+		path := filepath.Join(r.store.TorrentDir, entry.Name())
+		allowed, inspectErr := r.localBundleMaySeed(path)
+		if inspectErr != nil {
+			if logf != nil {
+				logf("inspect local torrent before seeding %s: %v", infoHash, inspectErr)
+			}
+			continue
+		}
+		if !allowed {
+			if t := active[infoHash]; t != nil {
+				t.Drop()
+				if logf != nil {
+					logf("stopped seeding: %s (writer policy)", infoHash)
+				}
+			}
+			r.mu.Lock()
+			delete(r.seeded, infoHash)
+			r.mu.Unlock()
+			continue
+		}
 		r.mu.Lock()
 		_, seen := r.seeded[infoHash]
 		if !seen {
@@ -460,7 +492,6 @@ func (r *syncRuntime) seedLocalTorrents(logf func(string, ...any)) error {
 		if seen {
 			continue
 		}
-		path := filepath.Join(r.store.TorrentDir, entry.Name())
 		if _, err := r.torrentClient.AddTorrentFromFile(path); err != nil {
 			r.mu.Lock()
 			delete(r.seeded, infoHash)
@@ -472,6 +503,26 @@ func (r *syncRuntime) seedLocalTorrents(logf func(string, ...any)) error {
 		}
 	}
 	return nil
+}
+
+func (r *syncRuntime) localBundleMaySeed(torrentPath string) (bool, error) {
+	mi, err := metainfo.LoadFromFile(torrentPath)
+	if err != nil {
+		return false, err
+	}
+	info, err := mi.UnmarshalInfo()
+	if err != nil {
+		return false, err
+	}
+	contentDir := filepath.Join(r.store.DataDir, info.BestName())
+	msg, _, err := LoadMessage(contentDir)
+	if err != nil {
+		return false, err
+	}
+	if strings.EqualFold(strings.TrimSpace(msg.Kind), historyManifestKind) {
+		return true, nil
+	}
+	return r.writerPolicy.AcceptsOrigin(msg.Origin), nil
 }
 
 func (r *syncRuntime) handleAnnouncement(announcement SyncAnnouncement) (bool, error) {
@@ -519,6 +570,7 @@ func (r *syncRuntime) enqueueHistoryFromLANPeers(ctx context.Context, logf func(
 		}
 		for _, announcement := range payload.Entries {
 			announcement = normalizeAnnouncement(announcement)
+			announcement.RelayHost = relayHostFromValue(peerValue)
 			if announcement.NetworkID == "" {
 				announcement.NetworkID = payload.NetworkID
 			}
@@ -778,6 +830,25 @@ func localPeerHosts(lanPeers []string) []string {
 		out = append(out, fallback...)
 	}
 	return out
+}
+
+func relayHostFromValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if !strings.Contains(value, "://") {
+		value = "http://" + value
+	}
+	u, err := url.Parse(value)
+	if err != nil {
+		return normalizeFoldKey(value)
+	}
+	host := strings.TrimSpace(u.Hostname())
+	if host == "" {
+		host = strings.TrimSpace(u.Path)
+	}
+	return normalizeFoldKey(strings.Trim(host, "[]"))
 }
 
 func syncMode(once bool) string {
@@ -1177,7 +1248,7 @@ func syncRef(ctx context.Context, client *torrent.Client, store *Store, ref Sync
 			Message:  fmt.Sprintf("validate downloaded bundle: %v", err),
 		}
 	}
-	if !policy.AllowsOrigin(msg.Origin) {
+	if !policy.AcceptsOrigin(msg.Origin) {
 		t.Drop()
 		return SyncItemResult{
 			Ref:      ref.Raw,

@@ -29,20 +29,22 @@ const (
 )
 
 type SyncAnnouncement struct {
-	Protocol  string   `json:"protocol"`
-	InfoHash  string   `json:"infohash"`
-	Magnet    string   `json:"magnet"`
-	SizeBytes int64    `json:"size_bytes,omitempty"`
-	Kind      string   `json:"kind,omitempty"`
-	Channel   string   `json:"channel,omitempty"`
-	Title     string   `json:"title,omitempty"`
-	Author    string   `json:"author,omitempty"`
-	CreatedAt string   `json:"created_at,omitempty"`
-	Project   string   `json:"project,omitempty"`
-	NetworkID string   `json:"network_id,omitempty"`
-	Topics    []string `json:"topics,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
+	Protocol  string         `json:"protocol"`
+	InfoHash  string         `json:"infohash"`
+	Magnet    string         `json:"magnet"`
+	SizeBytes int64          `json:"size_bytes,omitempty"`
+	Kind      string         `json:"kind,omitempty"`
+	Channel   string         `json:"channel,omitempty"`
+	Title     string         `json:"title,omitempty"`
+	Author    string         `json:"author,omitempty"`
+	CreatedAt string         `json:"created_at,omitempty"`
+	Project   string         `json:"project,omitempty"`
+	NetworkID string         `json:"network_id,omitempty"`
+	Topics    []string       `json:"topics,omitempty"`
+	Tags      []string       `json:"tags,omitempty"`
 	Origin    *MessageOrigin `json:"origin,omitempty"`
+	RelayPeer string         `json:"-"`
+	RelayHost string         `json:"-"`
 }
 
 type pubsubRuntime struct {
@@ -194,6 +196,7 @@ func (r *pubsubRuntime) subscribe(ctx context.Context, topicName string, onAnnou
 				continue
 			}
 			announcement = normalizeAnnouncement(announcement)
+			announcement.RelayPeer = msg.ReceivedFrom.String()
 			if announcement.InfoHash == "" || announcement.Magnet == "" {
 				r.recordError(fmt.Errorf("ignore incomplete pubsub announcement on %s", topicName))
 				continue
@@ -508,7 +511,10 @@ func stringSlice(value any) []string {
 func matchesAnnouncement(announcement SyncAnnouncement, rules SyncSubscriptions, policy WriterPolicy) bool {
 	rules.Normalize()
 	policy.Normalize()
-	if !policy.AllowsOrigin(announcement.Origin) {
+	if !policy.AcceptsRelay(announcement.RelayPeer, announcement.RelayHost) {
+		return false
+	}
+	if !policy.AcceptsOrigin(announcement.Origin) {
 		return false
 	}
 	if !withinMaxAge(announcement.CreatedAt, rules.MaxAgeDays) {

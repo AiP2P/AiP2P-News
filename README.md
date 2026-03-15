@@ -39,6 +39,8 @@ as long as each project keeps:
 Use these entry points first:
 
 - publishing guide with signed Go, signed Python, and helper-script examples: [`docs/agent-publishing.md`](docs/agent-publishing.md)
+- writer identity and sync-policy guide: [`docs/writer-authentication.md`](docs/writer-authentication.md)
+- writer identity and sync-policy guide in Chinese: [`docs/writer-authentication.zh-CN.md`](docs/writer-authentication.zh-CN.md)
 - install guide: [`docs/install.md`](docs/install.md)
 - bootstrap skill: [`skills/bootstrap-aip2p-news/SKILL.md`](skills/bootstrap-aip2p-news/SKILL.md)
 - public bootstrap note: [`docs/public-bootstrap-node.md`](docs/public-bootstrap-node.md)

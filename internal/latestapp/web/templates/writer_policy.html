@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Project}} Writer Policy</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      {{template "appSidebar" .}}
+      <main class="page-shell">
+        {{template "sidebarToggle" .}}
+        <section class="hero hero-dashboard">
+          <p class="eyebrow">Writer Governance</p>
+          <div class="hero-heading">
+            <div>
+              <h1>Writer policy manager</h1>
+              <p class="hero-copy">Manage local sync mode, authority-signed registries, writer capabilities, and relay trust for this node.</p>
+            </div>
+            <div class="hero-actions">
+              <span class="version-chip">{{.Version}}</span>
+            </div>
+          </div>
+          <div class="hero-stats hero-stats-wide">
+            {{range .EffectiveSummary}}
+              <div class="hero-stat-card">
+                <span class="stat-label">{{.Label}}</span>
+                <strong>{{.Value}}</strong>
+              </div>
+            {{end}}
+          </div>
+        </section>
+
+        {{if .Saved}}
+          <section class="panel policy-notice policy-notice-good">
+            <p><strong>Saved.</strong> The local <code>{{.PolicyPath}}</code> file has been updated.</p>
+          </section>
+        {{end}}
+        {{if .Error}}
+          <section class="panel policy-notice policy-notice-bad">
+            <p><strong>Could not save policy.</strong> {{.Error}}</p>
+          </section>
+        {{end}}
+
+        <section class="panel writer-policy-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-label">Local file</p>
+              <p class="micro-copy"><code>{{.PolicyPath}}</code></p>
+            </div>
+          </div>
+          <form class="policy-form" method="post" action="/writer-policy">
+            <div class="policy-grid policy-grid-compact">
+              <label class="policy-field">
+                <span>Sync mode</span>
+                <select name="sync_mode">
+                  <option value="mixed" {{if eq .SyncMode "mixed"}}selected{{end}}>mixed</option>
+                  <option value="all" {{if eq .SyncMode "all"}}selected{{end}}>all</option>
+                  <option value="trusted_writers_only" {{if eq .SyncMode "trusted_writers_only"}}selected{{end}}>trusted_writers_only</option>
+                  <option value="whitelist" {{if eq .SyncMode "whitelist"}}selected{{end}}>whitelist</option>
+                  <option value="blacklist" {{if eq .SyncMode "blacklist"}}selected{{end}}>blacklist</option>
+                </select>
+              </label>
+              <label class="policy-field">
+                <span>Default writer capability</span>
+                <select name="default_capability">
+                  <option value="read_write" {{if eq .DefaultCapability "read_write"}}selected{{end}}>read_write</option>
+                  <option value="read_only" {{if eq .DefaultCapability "read_only"}}selected{{end}}>read_only</option>
+                  <option value="blocked" {{if eq .DefaultCapability "blocked"}}selected{{end}}>blocked</option>
+                </select>
+              </label>
+              <label class="policy-field">
+                <span>Default relay trust</span>
+                <select name="relay_default_trust">
+                  <option value="neutral" {{if eq .RelayDefaultTrust "neutral"}}selected{{end}}>neutral</option>
+                  <option value="trusted" {{if eq .RelayDefaultTrust "trusted"}}selected{{end}}>trusted</option>
+                  <option value="blocked" {{if eq .RelayDefaultTrust "blocked"}}selected{{end}}>blocked</option>
+                </select>
+              </label>
+              <label class="policy-check">
+                <input type="checkbox" name="allow_unsigned" {{if .AllowUnsigned}}checked{{end}}>
+                <span>Allow unsigned content</span>
+              </label>
+            </div>
+
+            <div class="policy-grid">
+              <label class="policy-field">
+                <span>Trusted authorities</span>
+                <small>One per line: <code>authority_id=public_key</code></small>
+                <textarea name="trusted_authorities">{{.TrustedAuthoritiesText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Shared registries</span>
+                <small>One per line: local path or URL</small>
+                <textarea name="shared_registries">{{.SharedRegistriesText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Agent capabilities</span>
+                <small>One per line: <code>agent_id=read_write</code></small>
+                <textarea name="agent_capabilities">{{.AgentCapabilitiesText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Public-key capabilities</span>
+                <small>One per line: <code>public_key=read_only</code></small>
+                <textarea name="public_key_capabilities">{{.PublicKeyCapabilitiesText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Relay peer trust</span>
+                <small>One per line: <code>peer_id=blocked</code></small>
+                <textarea name="relay_peer_trust">{{.RelayPeerTrustText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Relay host trust</span>
+                <small>One per line: <code>host=trusted</code></small>
+                <textarea name="relay_host_trust">{{.RelayHostTrustText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Allowed agent IDs</span>
+                <small>One per line</small>
+                <textarea name="allowed_agent_ids">{{.AllowedAgentIDsText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Allowed public keys</span>
+                <small>One per line</small>
+                <textarea name="allowed_public_keys">{{.AllowedPublicKeysText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Blocked agent IDs</span>
+                <small>One per line</small>
+                <textarea name="blocked_agent_ids">{{.BlockedAgentIDsText}}</textarea>
+              </label>
+              <label class="policy-field">
+                <span>Blocked public keys</span>
+                <small>One per line</small>
+                <textarea name="blocked_public_keys">{{.BlockedPublicKeysText}}</textarea>
+              </label>
+            </div>
+
+            <div class="hero-actions">
+              <button class="button-link" type="submit">Save policy</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+    {{template "sidebarScript" .}}
+  </body>
+</html>

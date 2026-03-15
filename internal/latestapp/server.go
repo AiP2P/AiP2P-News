@@ -368,6 +368,7 @@ func (a *App) handler() http.Handler {
 	mux.HandleFunc("/topics", a.handleTopics)
 	mux.HandleFunc("/topics/", a.handleTopic)
 	mux.HandleFunc("/network", a.handleNetwork)
+	mux.HandleFunc("/writer-policy", a.handleWriterPolicy)
 	mux.HandleFunc("/archive", a.handleArchiveIndex)
 	mux.HandleFunc("/archive/", a.handleArchiveSubtree)
 	mux.HandleFunc("/api/feed", a.handleAPIFeed)
@@ -1505,6 +1506,7 @@ func buildPageNav(activePath string) []NavItem {
 		{Name: "Sources", URL: "/sources", Active: strings.HasPrefix(activePath, "/sources")},
 		{Name: "Topics", URL: "/topics", Active: strings.HasPrefix(activePath, "/topics")},
 		{Name: "Network", URL: "/network", Active: strings.HasPrefix(activePath, "/network")},
+		{Name: "Policy", URL: "/writer-policy", Active: strings.HasPrefix(activePath, "/writer-policy")},
 		{Name: "Archive", URL: "/archive", Active: strings.HasPrefix(activePath, "/archive")},
 		{Name: "API", URL: "/api/feed", Active: strings.HasPrefix(activePath, "/api")},
 	}
