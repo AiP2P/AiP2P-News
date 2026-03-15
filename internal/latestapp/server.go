@@ -338,7 +338,7 @@ func ensureRuntimeLayout(storeRoot, archiveRoot, rulesPath, writerPath, netPath 
 		if err := os.MkdirAll(filepath.Dir(writerPath), 0o755); err != nil {
 			return err
 		}
-		if err := ensureFileIfMissing(writerPath, []byte(defaultWriterPolicyJSON)); err != nil {
+		if err := ensureWriterPolicyFile(writerPath); err != nil {
 			return err
 		}
 		if err := ensureFileIfMissing(filepath.Join(filepath.Dir(writerPath), writerWhitelistINFName), []byte(defaultWriterWhitelistINF)); err != nil {

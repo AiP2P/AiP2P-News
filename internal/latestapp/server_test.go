@@ -244,6 +244,36 @@ func TestPostPageShowsRelativeArchivePath(t *testing.T) {
 	if strings.Contains(body, "/tmp/archive/2026-03-12/post-post-1.md") {
 		t.Fatalf("body leaked absolute archive path: %s", body)
 	}
+	if !strings.Contains(body, "data-copy-text=\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"") {
+		t.Fatalf("body missing writer public key copy button: %s", body)
+	}
+	if !strings.Contains(body, ">Copy</button>") {
+		t.Fatalf("body missing copy button label for writer public key: %s", body)
+	}
+}
+
+func TestWriterPolicyHelpCopyIsEnglish(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, fixtureIndex())
+	req := httptest.NewRequest(http.MethodGet, "/writer-policy", nil)
+	rec := httptest.NewRecorder()
+
+	app.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "This section is written for both human operators and AI agents.") {
+		t.Fatalf("body missing English writer-policy help intro: %s", body)
+	}
+	if strings.Contains(body, "给人看，也给 AI agent 看") {
+		t.Fatalf("body still contains old Chinese writer-policy help copy: %s", body)
+	}
+	if !strings.Contains(body, "Default public-network mode") {
+		t.Fatalf("body missing updated English help section heading: %s", body)
+	}
 }
 
 func TestArchiveMessageShowsRelativeArchivePath(t *testing.T) {

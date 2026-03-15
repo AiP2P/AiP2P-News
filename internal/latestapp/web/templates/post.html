@@ -110,8 +110,9 @@
             <p class="panel-label">Writer public key</p>
             {{if .Post.OriginPublicKey}}
               <p class="micro-copy">This client groups author source pages by the original poster's public key when one is available.</p>
-              <div class="network-code-list">
-                <code>{{.Post.OriginPublicKey}}</code>
+              <div class="identity-reveal-body">
+                <code class="identity-code">{{.Post.OriginPublicKey}}</code>
+                <button class="button-link button-link-muted identity-copy-button" type="button" data-copy-text="{{.Post.OriginPublicKey}}">Copy</button>
               </div>
             {{else}}
               <p class="micro-copy">This post does not include a signed origin public key. Legacy and unsigned posts keep their older source grouping.</p>

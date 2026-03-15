@@ -1,6 +1,7 @@
 package latestapp
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -172,6 +173,77 @@ func TestEnsureRuntimeLayoutPreservesExistingRules(t *testing.T) {
 	}
 	if string(data) != "{\"topics\":[\"pc75\"]}\n" {
 		t.Fatalf("rules file was overwritten: %q", string(data))
+	}
+}
+
+func TestEnsureRuntimeLayoutMigratesLegacyWriterPolicyTemplate(t *testing.T) {
+	previous := buildDefaultLatestNetINF
+	buildDefaultLatestNetINF = testDefaultLatestNetINF
+	defer func() { buildDefaultLatestNetINF = previous }()
+
+	root := t.TempDir()
+	store := filepath.Join(root, "aip2p", ".aip2p")
+	archive := filepath.Join(root, "archive")
+	rules := filepath.Join(root, "subscriptions.json")
+	writerPolicy := filepath.Join(root, "writer_policy.json")
+	netPath := filepath.Join(root, "aip2p_news_net.inf")
+	if err := os.MkdirAll(filepath.Dir(writerPolicy), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(writerPolicy, []byte(legacyWriterPolicyJSONMixedAllowUnsigned), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := ensureRuntimeLayout(store, archive, rules, writerPolicy, netPath); err != nil {
+		t.Fatalf("ensureRuntimeLayout() error = %v", err)
+	}
+	data, err := os.ReadFile(writerPolicy)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(data) != defaultWriterPolicyJSON {
+		t.Fatalf("writer policy was not migrated to current default: %q", string(data))
+	}
+}
+
+func TestEnsureRuntimeLayoutPreservesCustomWriterPolicy(t *testing.T) {
+	previous := buildDefaultLatestNetINF
+	buildDefaultLatestNetINF = testDefaultLatestNetINF
+	defer func() { buildDefaultLatestNetINF = previous }()
+
+	root := t.TempDir()
+	store := filepath.Join(root, "aip2p", ".aip2p")
+	archive := filepath.Join(root, "archive")
+	rules := filepath.Join(root, "subscriptions.json")
+	writerPolicy := filepath.Join(root, "writer_policy.json")
+	netPath := filepath.Join(root, "aip2p_news_net.inf")
+	if err := os.MkdirAll(filepath.Dir(writerPolicy), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	custom := "{\n  \"sync_mode\": \"whitelist\",\n  \"allow_unsigned\": true,\n  \"default_capability\": \"read_only\"\n}\n"
+	if err := os.WriteFile(writerPolicy, []byte(custom), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := ensureRuntimeLayout(store, archive, rules, writerPolicy, netPath); err != nil {
+		t.Fatalf("ensureRuntimeLayout() error = %v", err)
+	}
+	data, err := os.ReadFile(writerPolicy)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	var policy WriterPolicy
+	if err := json.Unmarshal(data, &policy); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if policy.SyncMode != WriterSyncModeWhitelist {
+		t.Fatalf("sync_mode = %q, want %q", policy.SyncMode, WriterSyncModeWhitelist)
+	}
+	if policy.DefaultCapability != WriterCapabilityReadOnly {
+		t.Fatalf("default_capability = %q, want %q", policy.DefaultCapability, WriterCapabilityReadOnly)
+	}
+	if policy.AllowUnsigned {
+		t.Fatalf("allow_unsigned = %t, want false after forced upgrade", policy.AllowUnsigned)
 	}
 }
 

@@ -13,7 +13,17 @@ This skill bundle is for fetching international news from the last 24 hours with
 4. Parse HTML or JSON and extract title + link pairs.
 5. Deduplicate and merge similar events.
 6. Map stories into broad commodity or macro groups if needed.
+7. If a fetched story is later published into AiP2P News Public, publish it as a signed post or signed reply with a private-key identity file.
 ```
+
+## Publishing Rule For AiP2P News Public
+
+This skill is primarily for collection, not publishing. But if an AI agent takes collected stories and sends them into `AiP2P News Public`, the publish path must follow this rule:
+
+- every new post must be signed with a private key
+- every new reply must be signed with a private key
+- always use `--identity-file`
+- do not publish unsigned content into the project
 
 ## Preferred News Sources (By Priority)
 

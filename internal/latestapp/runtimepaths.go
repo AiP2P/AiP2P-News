@@ -1,6 +1,7 @@
 package latestapp
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,6 +18,8 @@ const defaultWriterBlacklistINF = "# WriterBlacklist.inf\n# One writer entry per
 
 const defaultSubscriptionsJSON = "{\n  \"channels\": [],\n  \"topics\": [\"all\"],\n  \"tags\": [],\n  \"max_age_days\": 99999999,\n  \"max_bundle_mb\": 10,\n  \"max_items_per_day\": 999999999999\n}\n"
 const defaultWriterPolicyJSON = "{\n  \"sync_mode\": \"all\",\n  \"allow_unsigned\": false,\n  \"default_capability\": \"read_write\",\n  \"trusted_authorities\": {},\n  \"shared_registries\": [],\n  \"relay_default_trust\": \"neutral\",\n  \"relay_peer_trust\": {},\n  \"relay_host_trust\": {},\n  \"agent_capabilities\": {},\n  \"public_key_capabilities\": {},\n  \"allowed_agent_ids\": [],\n  \"allowed_public_keys\": [],\n  \"blocked_agent_ids\": [],\n  \"blocked_public_keys\": []\n}\n"
+const legacyWriterPolicyJSONMixedAllowUnsigned = "{\n  \"sync_mode\": \"mixed\",\n  \"allow_unsigned\": true,\n  \"default_capability\": \"read_write\",\n  \"trusted_authorities\": {},\n  \"shared_registries\": [],\n  \"relay_default_trust\": \"neutral\",\n  \"relay_peer_trust\": {},\n  \"relay_host_trust\": {},\n  \"agent_capabilities\": {},\n  \"public_key_capabilities\": {},\n  \"allowed_agent_ids\": [],\n  \"allowed_public_keys\": [],\n  \"blocked_agent_ids\": [],\n  \"blocked_public_keys\": []\n}\n"
+const legacyWriterPolicyJSONAllAllowUnsigned = "{\n  \"sync_mode\": \"all\",\n  \"allow_unsigned\": true,\n  \"default_capability\": \"read_write\",\n  \"trusted_authorities\": {},\n  \"shared_registries\": [],\n  \"relay_default_trust\": \"neutral\",\n  \"relay_peer_trust\": {},\n  \"relay_host_trust\": {},\n  \"agent_capabilities\": {},\n  \"public_key_capabilities\": {},\n  \"allowed_agent_ids\": [],\n  \"allowed_public_keys\": [],\n  \"blocked_agent_ids\": [],\n  \"blocked_public_keys\": []\n}\n"
 
 const defaultTrackerListINF = `# Trackerlist.inf
 # One tracker URI per line. Lines starting with #, ;, or // are ignored.
@@ -247,6 +250,43 @@ func ensureFileIfMissing(path string, content []byte) error {
 		return err
 	}
 	return os.WriteFile(path, content, 0o644)
+}
+
+func ensureWriterPolicyFile(path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return os.WriteFile(path, []byte(defaultWriterPolicyJSON), 0o644)
+	}
+	if err != nil {
+		return err
+	}
+	text := string(data)
+	switch text {
+	case legacyWriterPolicyJSONMixedAllowUnsigned, legacyWriterPolicyJSONAllAllowUnsigned:
+		return os.WriteFile(path, []byte(defaultWriterPolicyJSON), 0o644)
+	}
+	var policy WriterPolicy
+	if err := json.Unmarshal(data, &policy); err != nil {
+		return nil
+	}
+	if !policy.AllowUnsigned {
+		return nil
+	}
+	policy.AllowUnsigned = false
+	policy.normalize()
+	updated, err := json.MarshalIndent(policy, "", "  ")
+	if err != nil {
+		return err
+	}
+	updated = append(updated, '\n')
+	return os.WriteFile(path, updated, 0o644)
 }
 
 func appendNetworkIDIfMissing(path, networkID string) error {
